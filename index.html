@@ -1,0 +1,3098 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TechVault &amp; Reportes | Bóveda Cifrada y Sincronización Cloud</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    },
+                    colors: {
+                        vault: {
+                            950: '#090d16',
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            accent: '#3b82f6',
+                            emerald: '#10b981'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+
+    <!-- Tipografías -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+    <!-- Iconos Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- jsPDF para generación de informes y fichas PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- jsQR para lectura de códigos QR -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+    <style>
+        body {
+            background-color: #090d16;
+            color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .touch-none-canvas { touch-action: none; user-select: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- Contenedor de notificaciones -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)] pointer-events-none"></div>
+
+    <!-- Splash Loader con arranque seguro -->
+    <div id="splash-loader" class="fixed inset-0 z-[90] bg-vault-950 flex items-center justify-center p-4">
+        <div class="bg-vault-900 border border-slate-800 rounded-2xl p-6 text-center max-w-xs w-full shadow-2xl">
+            <div class="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mx-auto mb-3 animate-pulse">
+                <i data-lucide="cloud-cog" class="w-6 h-6"></i>
+            </div>
+            <div class="text-base font-bold text-white">TechVault &amp; Reportes</div>
+            <div class="text-xs text-slate-400 mt-1">Conectando bóveda cifrada AES-256-GCM...</div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         1. PANTALLA DE ACCESO CLOUD + BÓVEDA CIFRADA (ZERO-KNOWLEDGE)
+         ===================================================================== -->
+    <div id="auth-screen" class="hidden fixed inset-0 z-50 bg-vault-950 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="w-full max-w-md bg-vault-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-5">
+            <div class="flex flex-col items-center text-center">
+                <div class="w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3">
+                    <i data-lucide="shield-check" class="w-9 h-9"></i>
+                </div>
+                <h1 class="text-2xl font-bold tracking-tight text-white">TechVault &amp; Reportes</h1>
+                <p class="text-xs text-slate-400 mt-1">Sincronización en la nube + Cifrado local AES-256-GCM</p>
+            </div>
+
+            <!-- Paso A: Identificación de cuenta en la nube (para vincular Celular y PC/Mac) -->
+            <div id="cloud-account-panel" class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                        <i data-lucide="cloud" class="w-4 h-4"></i> Cuenta de Sincronización
+                    </span>
+                    <span id="auth-cloud-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">Verificando...</span>
+                </div>
+
+                <!-- Si está autenticado con Google / Email o sesión activa -->
+                <div id="signed-in-account-info" class="hidden space-y-2">
+                    <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-3 py-2">
+                        <div class="min-w-0">
+                            <div id="account-display-email" class="text-xs font-semibold text-white truncate">Sesión vinculada</div>
+                            <div id="account-display-uid" class="text-[10px] font-mono text-slate-400 truncate"></div>
+                        </div>
+                        <button type="button" id="btn-signout-cloud" class="text-[11px] text-slate-400 hover:text-red-400 px-2 py-1 rounded-lg bg-slate-800 transition shrink-0">
+                            Cambiar cuenta
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Opciones para iniciar sesión con Google o Correo/Contraseña para sincronizar entre dispositivos -->
+                <div id="signin-methods-box" class="space-y-2.5">
+                    <p class="text-[11px] text-slate-400 leading-relaxed">
+                        Iniciá sesión con la <strong>misma cuenta</strong> en tu celular y en tu PC/Mac para sincronizar tus clientes e informes cifrados automáticamente.
+                    </p>
+                    <button type="button" id="btn-google-signin" class="w-full bg-white hover:bg-slate-100 text-slate-900 font-semibold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"/><path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"/></svg>
+                        Continuar con Google
+                    </button>
+
+                    <details class="group bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
+                        <summary class="text-[11px] font-medium text-slate-300 cursor-pointer flex items-center justify-between list-none">
+                            <span>O usar Correo y Contraseña de cuenta</span>
+                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>
+                        </summary>
+                        <div class="mt-2.5 space-y-2">
+                            <input type="email" id="cloud-email-input" placeholder="tu-correo@ejemplo.com" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+                            <input type="password" id="cloud-email-pass" placeholder="Contraseña de cuenta (mín. 6 caracteres)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" id="btn-email-login" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2 rounded-lg transition">Iniciar Sesión</button>
+                                <button type="button" id="btn-email-register" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-2 rounded-lg transition">Crear Cuenta</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Paso B1: Crear Contraseña Maestra de Bóveda (cuando no existe bóveda en nube ni local) -->
+            <form id="setup-form" class="hidden space-y-3.5">
+                <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-200 flex gap-2.5 items-start">
+                    <i data-lucide="key-round" class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="block font-semibold text-amber-300 mb-0.5">Cifrado Zero-Knowledge antes de subir</strong>
+                        Creá una <strong>Contraseña Maestra</strong> (usá la misma en tu celular y PC). Todos los datos se cifran en tu dispositivo antes de guardarse en la nube.
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Crear Contraseña Maestra de Bóveda</label>
+                    <input type="password" id="setup-pass" required minlength="4" placeholder="Mínimo 4 caracteres..."
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Confirmar Contraseña Maestra</label>
+                    <input type="password" id="setup-pass-confirm" required minlength="4" placeholder="Repetí la contraseña maestra..."
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition">
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-semibold py-3 rounded-xl shadow-lg shadow-blue-600/20 transition flex items-center justify-center gap-2">
+                    <i data-lucide="lock" class="w-4 h-4"></i> Crear y Sincronizar Bóveda
+                </button>
+            </form>
+
+            <!-- Paso B2: Desbloquear Bóveda Existente (detectada en nube o caché local) -->
+            <form id="unlock-form" class="hidden space-y-3.5">
+                <div id="vault-source-hint" class="text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2 flex items-center gap-2">
+                    <i data-lucide="cloud-download" class="w-4 h-4 shrink-0"></i>
+                    <span>Bóveda cifrada detectada. Ingresá tu Contraseña Maestra para descifrar.</span>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Contraseña Maestra de Bóveda</label>
+                    <input type="password" id="unlock-pass" required placeholder="Ingresá tu clave maestra..."
+                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition">
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-semibold py-3 rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2">
+                    <i data-lucide="unlock" class="w-4 h-4"></i> Desbloquear Bóveda
+                </button>
+
+                <div class="pt-3 border-t border-slate-800 flex flex-col sm:flex-row gap-2 justify-between items-center text-xs">
+                    <label class="text-slate-400 hover:text-blue-400 cursor-pointer flex items-center gap-1.5 transition">
+                        <i data-lucide="upload" class="w-3.5 h-3.5"></i> Importar Backup (.enc)
+                        <input type="file" id="restore-backup-auth" accept=".enc,.json" class="hidden">
+                    </label>
+                    <button type="button" id="btn-reset-vault-prompt" class="text-slate-500 hover:text-red-400 transition">
+                        Reiniciar bóveda
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         2. APLICACIÓN PRINCIPAL
+         ===================================================================== -->
+    <div id="app-shell" class="hidden flex-1 flex flex-col pb-20 md:pb-0">
+
+        <!-- Barra Superior -->
+        <header class="sticky top-0 z-30 bg-vault-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+            <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div id="header-logo-container" class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 overflow-hidden">
+                        <i data-lucide="shield" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h1 id="header-company-name" class="font-bold text-white text-base sm:text-lg truncate">SC Seguridad Integral</h1>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <!-- Indicador de estado de sincronización en la nube -->
+                            <span id="sync-status-badge" class="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
+                                <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                <span id="sync-status-text">Sincronizado en la nube</span>
+                            </span>
+                            <span class="text-[10px] text-slate-500 hidden sm:inline">• AES-256-GCM</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navegación Desktop -->
+                <nav class="hidden md:flex items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-slate-800">
+                    <button onclick="switchTab('clients')" data-tab="clients" class="nav-btn px-3.5 py-2 rounded-lg text-xs lg:text-sm font-medium transition flex items-center gap-2 bg-blue-600 text-white">
+                        <i data-lucide="users" class="w-4 h-4"></i> CLIENTES Y EQUIPOS
+                    </button>
+                    <button onclick="switchTab('reports')" data-tab="reports" class="nav-btn px-3.5 py-2 rounded-lg text-xs lg:text-sm font-medium transition flex items-center gap-2 text-slate-400 hover:text-white">
+                        <i data-lucide="file-check-2" class="w-4 h-4"></i> INFORMES
+                    </button>
+                    <button onclick="switchTab('settings')" data-tab="settings" class="nav-btn px-3.5 py-2 rounded-lg text-xs lg:text-sm font-medium transition flex items-center gap-2 text-slate-400 hover:text-white">
+                        <i data-lucide="settings" class="w-4 h-4"></i> EMPRESA Y BACKUP
+                    </button>
+                </nav>
+
+                <div class="flex items-center gap-2">
+                    <button id="header-primary-action" onclick="handleHeaderPrimaryAction()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 flex items-center gap-1.5 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span id="header-primary-label" class="hidden sm:inline">Nuevo Cliente</span>
+                        <span id="header-primary-short" class="sm:hidden">Nuevo</span>
+                    </button>
+                    <button onclick="lockVault()" title="Bloquear bóveda" class="p-2.5 rounded-xl bg-slate-800 hover:bg-red-500/20 hover:text-red-400 text-slate-300 border border-slate-700 transition">
+                        <i data-lucide="lock" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenido Principal -->
+        <main class="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6">
+
+            <!-- ===============================================================
+                 PESTAÑA 1: CLIENTES Y EQUIPOS
+                 =============================================================== -->
+            <section id="view-clients" class="space-y-5">
+                <div class="bg-vault-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-lg">
+                    <div class="relative">
+                        <i data-lucide="search" class="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                        <input type="text" id="search-input" oninput="renderClients()"
+                            placeholder="Buscar por Nombre y Apellido, Teléfono, Domicilio, N° Serie (SN) o QR..."
+                            class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-11 pr-10 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition">
+                        <button id="clear-search" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+                            <i data-lucide="x-circle" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        <button onclick="setCategoryFilter('ALL')" data-cat="ALL" class="cat-chip px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white whitespace-nowrap transition">
+                            Todos (<span id="count-all">0</span>)
+                        </button>
+                        <button onclick="setCategoryFilter('CCTV')" data-cat="CCTV" class="cat-chip px-3.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap transition flex items-center gap-1.5">
+                            <i data-lucide="cctv" class="w-3.5 h-3.5 text-amber-400"></i> CCTV
+                        </button>
+                        <button onclick="setCategoryFilter('IP')" data-cat="IP" class="cat-chip px-3.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap transition flex items-center gap-1.5">
+                            <i data-lucide="video" class="w-3.5 h-3.5 text-cyan-400"></i> Cámaras IP
+                        </button>
+                        <button onclick="setCategoryFilter('REDES')" data-cat="REDES" class="cat-chip px-3.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap transition flex items-center gap-1.5">
+                            <i data-lucide="wifi" class="w-3.5 h-3.5 text-emerald-400"></i> REDES
+                        </button>
+                        <button onclick="setCategoryFilter('PC')" data-cat="PC" class="cat-chip px-3.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap transition flex items-center gap-1.5">
+                            <i data-lucide="laptop" class="w-3.5 h-3.5 text-purple-400"></i> SERV TECNICO DE PC
+                        </button>
+                    </div>
+                </div>
+
+                <div id="clients-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+                <div id="empty-state" class="hidden bg-vault-900/60 border border-dashed border-slate-800 rounded-2xl p-10 text-center">
+                    <div class="w-14 h-14 rounded-2xl bg-slate-800/80 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="folder-plus" class="w-7 h-7"></i>
+                    </div>
+                    <h3 class="text-base font-semibold text-white">Sin clientes registrados</h3>
+                    <p class="text-xs text-slate-400 max-w-xs mx-auto mt-1 mb-4">Agregá tu primer cliente para sincronizar equipos CCTV, IP, REDES o SERV TECNICO DE PC en todos tus dispositivos.</p>
+                    <button onclick="openClientModal()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Cargar Primer Cliente
+                    </button>
+                </div>
+            </section>
+
+            <!-- ===============================================================
+                 PESTAÑA 2: INFORMES
+                 =============================================================== -->
+            <section id="view-reports" class="hidden space-y-5">
+                <div class="bg-vault-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-lg">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i data-lucide="file-check-2" class="w-5 h-5 text-amber-400"></i>
+                                INFORMES Técnicos de Asistencia
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Iniciá el informe en el celular y cerralo desde tu PC/Mac con sincronización automática y firma del técnico instalador.</p>
+                        </div>
+                        <button onclick="openReportModal()" class="bg-amber-600 hover:bg-amber-500 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2 transition shrink-0">
+                            <i data-lucide="file-plus-2" class="w-4 h-4"></i> Nuevo Informe
+                        </button>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <div class="relative flex-1">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="report-search-input" oninput="renderReports()"
+                                placeholder="Buscar informe por cliente, domicilio, motivo de visita o solución..."
+                                class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition">
+                        </div>
+                        <select id="report-service-filter" onchange="renderReports()" class="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-amber-500">
+                            <option value="ALL">Todos los servicios</option>
+                            <option value="CCTV">CCTV</option>
+                            <option value="IP">Cámaras IP</option>
+                            <option value="REDES">REDES</option>
+                            <option value="PC">SERV TECNICO DE PC</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="reports-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+                <div id="reports-empty-state" class="hidden bg-vault-900/60 border border-dashed border-slate-800 rounded-2xl p-10 text-center">
+                    <div class="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto mb-3 border border-amber-500/20">
+                        <i data-lucide="file-text" class="w-7 h-7"></i>
+                    </div>
+                    <h3 class="text-base font-semibold text-white">Sin informes generados</h3>
+                    <p class="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4">Creá un informe técnico seleccionando un cliente o agregando uno nuevo, con fecha/hora, diagnóstico, hasta 10 fotos y firma del técnico instalador.</p>
+                    <button onclick="openReportModal()" class="bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl inline-flex items-center gap-2 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Crear Primer Informe
+                    </button>
+                </div>
+            </section>
+
+            <!-- ===============================================================
+                 PESTAÑA 3: EMPRESA Y BACKUP
+                 =============================================================== -->
+            <section id="view-settings" class="hidden max-w-3xl mx-auto space-y-6">
+                <!-- Estado de Sincronización Cloud -->
+                <div class="bg-vault-900 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                                <i data-lucide="cloud-sync" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-lg font-bold text-white">Sincronización en Línea (Celular ↔ PC/Mac)</h2>
+                                <p class="text-xs text-slate-400">Los datos se cifran en tu dispositivo con AES-256-GCM antes de enviarse a la nube.</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="forceCloudSync()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shrink-0">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sincronizar Ahora
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 text-xs space-y-1.5">
+                        <div class="flex justify-between gap-2">
+                            <span class="text-slate-400">Cuenta conectada:</span>
+                            <span id="settings-cloud-account" class="font-semibold text-white">No conectada</span>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                            <span class="text-slate-400">ID de Usuario (UID):</span>
+                            <span id="settings-cloud-uid" class="font-mono text-slate-300 break-all text-right">-</span>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                            <span class="text-slate-400">Última sincronización:</span>
+                            <span id="settings-last-sync" class="text-emerald-400 font-medium">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Perfil de Empresa y Técnico Instalador -->
+                <div class="bg-vault-900 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-5">
+                    <div class="flex items-center gap-3 border-b border-slate-800 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                            <i data-lucide="building-2" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-white">Perfil de Empresa y Técnico Instalador</h2>
+                            <p class="text-xs text-slate-400">Datos comerciales, logotipo y firma predeterminada para tus informes PDF.</p>
+                        </div>
+                    </div>
+
+                    <form id="company-form" class="space-y-4">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                            <div id="settings-logo-preview" class="w-16 h-16 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 overflow-hidden shrink-0">
+                                <i data-lucide="image" class="w-6 h-6"></i>
+                            </div>
+                            <div class="flex-1 space-y-1.5">
+                                <label class="block text-xs font-semibold text-slate-200">Logotipo de la Empresa</label>
+                                <p class="text-[11px] text-slate-400">Se muestra en el encabezado de todos los informes y fichas PDF.</p>
+                                <div class="flex flex-wrap gap-2 pt-1">
+                                    <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition inline-flex items-center gap-1.5">
+                                        <i data-lucide="upload" class="w-3.5 h-3.5"></i> Subir Logo
+                                        <input type="file" id="company-logo-input" accept="image/*" class="hidden">
+                                    </label>
+                                    <button type="button" onclick="removeCompanyLogo()" class="text-xs text-red-400 hover:text-red-300 px-2 py-1.5">Quitar</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Nombre Comercial *</label>
+                                <input type="text" id="cfg-name" required class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Teléfono / WhatsApp</label>
+                                <input type="text" id="cfg-phone" placeholder="Ej: +54 9 343 4000000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Datos Fiscales / CUIT</label>
+                                <input type="text" id="cfg-tax" placeholder="Ej: CUIT 20-00000000-0" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Domicilio Comercial</label>
+                                <input type="text" id="cfg-address" placeholder="Calle, ciudad, provincia" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Condiciones de Garantía / Nota al Pie</label>
+                            <textarea id="cfg-legal" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"></textarea>
+                        </div>
+
+                        <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400">Técnico Instalador y Firma Predeterminada</h3>
+                                    <p class="text-[11px] text-slate-400">Se precarga automáticamente en los nuevos informes técnicos.</p>
+                                </div>
+                                <button type="button" onclick="clearDefaultTechSigPad()" class="text-xs text-slate-400 hover:text-white flex items-center gap-1">
+                                    <i data-lucide="eraser" class="w-3.5 h-3.5"></i> Limpiar firma
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Nombre del Técnico Instalador</label>
+                                    <input type="text" id="cfg-tech-name" placeholder="Ej: Martín Rodríguez" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Cargo / Matrícula</label>
+                                    <input type="text" id="cfg-tech-role" placeholder="Ej: Técnico Instalador" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-xl overflow-hidden border border-slate-700 max-w-md relative">
+                                <canvas id="default-tech-sig-canvas" width="400" height="130" class="touch-none-canvas w-full h-28 block cursor-crosshair"></canvas>
+                                <div class="absolute bottom-2 inset-x-4 border-b border-dashed border-slate-300 pointer-events-none"></div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition flex items-center gap-2">
+                            <i data-lucide="save" class="w-4 h-4"></i> Guardar Perfil y Sincronizar
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Respaldo Cifrado (.enc) -->
+                <div class="bg-vault-900 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4">
+                    <div class="flex items-center gap-3 border-b border-slate-800 pb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                            <i data-lucide="database-backup" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-white">Copia de Seguridad Local Cifrada (.enc)</h2>
+                            <p class="text-xs text-slate-400">Descargá o restaurá un archivo cifrado adicional como respaldo offline.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button onclick="exportEncryptedBackup()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2">
+                            <i data-lucide="download" class="w-4 h-4"></i> Exportar Backup (.enc)
+                        </button>
+                        <label class="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer border border-slate-700">
+                            <i data-lucide="upload" class="w-4 h-4"></i> Importar Backup (.enc)
+                            <input type="file" id="import-backup-settings" accept=".enc,.json" class="hidden">
+                        </label>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Navegación Inferior Móvil -->
+        <nav class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-vault-900/95 backdrop-blur-md border-t border-slate-800 flex justify-around items-center py-2 px-2">
+            <button onclick="switchTab('clients')" data-tab="clients" class="nav-btn-mobile flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-blue-400">
+                <i data-lucide="users" class="w-5 h-5"></i>
+                <span class="text-[10px] font-semibold">Clientes</span>
+            </button>
+            <button onclick="switchTab('reports')" data-tab="reports" class="nav-btn-mobile flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-slate-400">
+                <i data-lucide="file-check-2" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">INFORMES</span>
+            </button>
+            <button onclick="handleHeaderPrimaryAction()" class="flex flex-col items-center justify-center -mt-5 p-3 rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/30 border-4 border-vault-950">
+                <i data-lucide="plus" class="w-6 h-6"></i>
+            </button>
+            <button onclick="switchTab('settings')" data-tab="settings" class="nav-btn-mobile flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-slate-400">
+                <i data-lucide="settings" class="w-5 h-5"></i>
+                <span class="text-[10px] font-medium">Ajustes</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- =====================================================================
+         3. MODAL: CLIENTE Y EQUIPOS
+         ===================================================================== -->
+    <div id="client-modal" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+        <div class="bg-vault-900 border border-slate-800 w-full max-w-3xl rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[94vh] flex flex-col overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900">
+                <h2 id="client-modal-title" class="text-lg font-bold text-white flex items-center gap-2">
+                    <i data-lucide="user-plus" class="w-5 h-5 text-blue-400"></i>
+                    <span>Ficha de Cliente y Equipos</span>
+                </h2>
+                <button onclick="closeClientModal()" class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-6 flex-1">
+                <input type="hidden" id="edit-client-id">
+
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                        <i data-lucide="contact" class="w-4 h-4"></i> Datos del Cliente
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Nombre y Apellido *</label>
+                            <input type="text" id="cli-name" required placeholder="Ej: Juan Pérez" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Teléfono *</label>
+                            <input type="tel" id="cli-phone" required placeholder="Ej: 5493437401234" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Domicilio</label>
+                            <input type="text" id="cli-address" placeholder="Calle, número, referencias..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                            <i data-lucide="cpu" class="w-4 h-4"></i> Equipos Registrados (<span id="eq-count-label">0</span>)
+                        </h3>
+                        <button type="button" onclick="openEquipmentForm()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-2 rounded-xl flex items-center gap-1.5 transition">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i> Agregar Equipo
+                        </button>
+                    </div>
+                    <div id="modal-equipments-list" class="space-y-2.5"></div>
+                </div>
+            </div>
+
+            <div class="px-5 py-3.5 border-t border-slate-800 bg-slate-900 flex justify-end gap-2.5">
+                <button type="button" onclick="closeClientModal()" class="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 transition">Cancelar</button>
+                <button type="button" onclick="saveClientData()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 flex items-center gap-2 transition">
+                    <i data-lucide="cloud-upload" class="w-4 h-4"></i> Guardar y Sincronizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         4. SUB-MODAL: EQUIPO (QR, SN, CLAVE, PATRÓN 3x3, FOTO)
+         ===================================================================== -->
+    <div id="equipment-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+        <div class="bg-vault-900 border border-slate-700 w-full max-w-2xl rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[94vh] flex flex-col overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i data-lucide="wrench" class="w-4 h-4 text-emerald-400"></i>
+                    <span id="eq-modal-title">Registro de Equipo</span>
+                </h3>
+                <button onclick="closeEquipmentForm()" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-4 flex-1">
+                <input type="hidden" id="eq-edit-index" value="-1">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Categoría *</label>
+                        <select id="eq-category" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                            <option value="CCTV">CCTV</option>
+                            <option value="IP">IP</option>
+                            <option value="REDES">REDES</option>
+                            <option value="PC">SERV TECNICO DE PC</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Equipo / Marca y Modelo *</label>
+                        <input type="text" id="eq-model" placeholder="Ej: Hikvision DS-7208 / PC Ryzen 5" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Número de Serie (SN)</label>
+                        <input type="text" id="eq-sn" placeholder="Ej: SN987654321" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Código QR</label>
+                        <div class="flex gap-1.5">
+                            <input type="text" id="eq-qr" placeholder="Escanear o cargar imagen QR..." class="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-mono text-white focus:border-blue-500 focus:outline-none">
+                            <button type="button" onclick="openQrScanner()" title="Escanear QR con cámara o imagen" class="px-3 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl flex items-center justify-center shrink-0 transition">
+                                <i data-lucide="qr-code" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                            <i data-lucide="key-round" class="w-3.5 h-3.5"></i> Clave y Patrón 3x3 (Cifrado AES-256)
+                        </span>
+                        <button type="button" id="btn-toggle-secret-visibility" onclick="toggleSecretFieldsVisibility()" class="text-[11px] text-slate-400 hover:text-white flex items-center gap-1">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i> <span id="secret-vis-label">Ocultar</span>
+                        </button>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Clave / Contraseña</label>
+                        <input type="text" id="eq-pass" placeholder="Clave del equipo / DVR / Wi-Fi / BIOS" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-emerald-300 focus:border-blue-500 focus:outline-none">
+                    </div>
+
+                    <div id="pattern-section" class="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center gap-4">
+                        <div class="flex flex-col items-center">
+                            <span class="text-[11px] text-slate-400 mb-1.5">Patrón Interactivo 3x3</span>
+                            <canvas id="pattern-canvas" width="160" height="160" class="touch-none-canvas bg-slate-900 border border-slate-700 rounded-2xl cursor-crosshair"></canvas>
+                        </div>
+                        <div class="flex-1 text-center sm:text-left space-y-2">
+                            <div class="text-xs font-medium text-slate-300">Secuencia del Patrón:</div>
+                            <div id="pattern-sequence-display" class="font-mono text-sm bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl text-blue-400">
+                                Sin patrón asignado
+                            </div>
+                            <p class="text-[11px] text-slate-500">Arrastrá el dedo o mouse conectando puntos del 1 al 9.</p>
+                            <button type="button" onclick="clearPattern()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition inline-flex items-center gap-1">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Limpiar Patrón
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Foto del Equipo</label>
+                    <div class="border border-dashed border-slate-700 rounded-xl p-3 bg-slate-950/60 flex flex-col items-center justify-center min-h-[90px]">
+                        <img id="eq-photo-preview" class="hidden max-h-28 rounded-lg object-contain mb-2" alt="Vista previa del equipo">
+                        <div class="flex gap-2">
+                            <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+                                <i data-lucide="camera" class="w-3.5 h-3.5"></i> Seleccionar / Tomar Foto
+                                <input type="file" id="eq-photo-input" accept="image/*" capture="environment" class="hidden">
+                            </label>
+                            <button type="button" id="eq-photo-remove" onclick="removeEqPhoto()" class="hidden text-xs text-red-400 hover:text-red-300 px-2">Quitar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-5 py-3 border-t border-slate-800 bg-slate-900 flex justify-end gap-2">
+                <button type="button" onclick="closeEquipmentForm()" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800">Cancelar</button>
+                <button type="button" onclick="saveEquipmentItem()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5">
+                    <i data-lucide="check" class="w-4 h-4"></i> Guardar Equipo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         5. MODAL: ESCÁNER QR
+         ===================================================================== -->
+    <div id="qr-modal" class="hidden fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-vault-900 border border-slate-700 w-full max-w-md rounded-2xl p-5 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i data-lucide="scan-line" class="w-5 h-5 text-blue-400"></i> Leer Código QR
+                </h3>
+                <button onclick="closeQrScanner()" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="relative aspect-square w-full bg-black rounded-xl overflow-hidden border border-slate-700 flex items-center justify-center">
+                <video id="qr-video" class="w-full h-full object-cover hidden" playsinline></video>
+                <canvas id="qr-canvas" class="hidden"></canvas>
+                <div id="qr-status-msg" class="p-4 text-center text-xs text-slate-400 space-y-2">
+                    <i data-lucide="camera" class="w-8 h-8 mx-auto text-slate-500"></i>
+                    <p>Iniciando cámara...</p>
+                </div>
+                <div id="qr-overlay-frame" class="hidden absolute inset-10 border-2 border-blue-500/80 rounded-2xl pointer-events-none shadow-[0_0_0_999px_rgba(0,0,0,0.45)]"></div>
+            </div>
+
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center space-y-2">
+                <p class="text-[11px] text-slate-400">También podés cargar una foto o captura de pantalla del código QR:</p>
+                <label class="cursor-pointer inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition">
+                    <i data-lucide="image-plus" class="w-4 h-4 text-blue-400"></i> Cargar Imagen QR
+                    <input type="file" id="qr-file-input" accept="image/*" class="hidden">
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         6. MODAL: PDF DE ENTREGA / FICHA DE CLIENTE ("Firma del cliente")
+         ===================================================================== -->
+    <div id="pdf-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-vault-900 border border-slate-700 w-full max-w-lg rounded-2xl p-5 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i data-lucide="file-signature" class="w-5 h-5 text-blue-400"></i> Ficha / Entrega de Cliente PDF
+                </h3>
+                <button onclick="closePdfModal()" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
+                    <div class="text-slate-400">Cliente: <strong id="pdf-client-name" class="text-white"></strong></div>
+                    <div class="text-slate-400">Equipos incluidos: <strong id="pdf-eq-count" class="text-emerald-400"></strong></div>
+                </div>
+
+                <label class="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 cursor-pointer">
+                    <input type="checkbox" id="pdf-include-secrets" class="mt-0.5 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-0">
+                    <div class="text-xs">
+                        <span class="font-semibold text-amber-300 block">Mostrar claves y patrón en el PDF</span>
+                        <span class="text-slate-400 text-[11px]">Si queda desmarcado, las claves y patrones se ocultan en el documento generado.</span>
+                    </div>
+                </label>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-medium text-slate-300">Firma del cliente:</label>
+                        <button type="button" onclick="clearSignaturePad()" class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                            <i data-lucide="eraser" class="w-3.5 h-3.5"></i> Limpiar
+                        </button>
+                    </div>
+                    <div class="bg-white rounded-xl overflow-hidden border-2 border-slate-700 relative">
+                        <canvas id="signature-canvas" width="440" height="170" class="touch-none-canvas w-full h-40 block cursor-crosshair"></canvas>
+                        <div class="absolute bottom-2 inset-x-4 border-b border-dashed border-slate-300 pointer-events-none"></div>
+                        <span class="absolute bottom-2 right-3 text-[10px] text-slate-400 pointer-events-none">Firma del cliente</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" onclick="closePdfModal()" class="px-4 py-2.5 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800">Cancelar</button>
+                <button type="button" onclick="generateAndDownloadPDF()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-blue-600/25 flex items-center gap-2 transition">
+                    <i data-lucide="file-down" class="w-4 h-4"></i> Descargar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         7. MODAL: CREAR / EDITAR INFORME TÉCNICO ("Firma del técnico instalador")
+         ===================================================================== -->
+    <div id="report-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+        <div class="bg-vault-900 border border-slate-700 w-full max-w-4xl rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[95vh] flex flex-col overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900">
+                <h2 id="report-modal-title" class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                    <i data-lucide="file-check-2" class="w-5 h-5 text-amber-400"></i>
+                    <span>Informe Técnico de Asistencia</span>
+                </h2>
+                <button onclick="closeReportModal()" class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-5 flex-1">
+                <input type="hidden" id="edit-report-id">
+
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                            <i data-lucide="user-check" class="w-4 h-4"></i> Cliente, Domicilio y Asistencia
+                        </h3>
+                        <button type="button" id="btn-toggle-new-client" onclick="toggleNewClientInReport()" class="text-xs bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition">
+                            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> + Nuevo Cliente
+                        </button>
+                    </div>
+
+                    <div id="rpt-existing-client-box">
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Seleccionar Cliente Existente</label>
+                        <select id="rpt-client-select" onchange="onReportClientSelected()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-500 focus:outline-none">
+                            <option value="">-- Seleccionar cliente guardado --</option>
+                        </select>
+                    </div>
+
+                    <div id="rpt-new-client-banner" class="hidden bg-blue-500/10 border border-blue-500/30 rounded-xl p-2.5 text-xs text-blue-200 flex items-center justify-between gap-2">
+                        <span>Se creará este cliente y se sincronizará automáticamente con tu agenda cifrada.</span>
+                        <button type="button" onclick="toggleNewClientInReport(false)" class="text-blue-300 underline shrink-0">Elegir existente</button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Nombre y Apellido *</label>
+                            <input type="text" id="rpt-client-name" required placeholder="Nombre y apellido del cliente" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Teléfono *</label>
+                            <input type="tel" id="rpt-client-phone" required placeholder="Teléfono de contacto" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-xs font-medium text-slate-300">Fecha y Hora de Asistencia *</label>
+                                <button type="button" onclick="setReportNow()" class="text-[11px] font-semibold text-amber-400 hover:text-amber-300">Ahora</button>
+                            </div>
+                            <input type="datetime-local" id="rpt-datetime" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white focus:border-amber-500 focus:outline-none">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Domicilio *</label>
+                            <input type="text" id="rpt-address" required placeholder="Dirección exacta donde se realizó la asistencia" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Tipo de Servicio</label>
+                            <select id="rpt-service-type" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-amber-500 focus:outline-none">
+                                <option value="CCTV">CCTV</option>
+                                <option value="IP">IP</option>
+                                <option value="REDES">REDES</option>
+                                <option value="PC">SERV TECNICO DE PC</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campos Técnicos del Informe -->
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Diagnóstico y Resolución
+                    </h3>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Motivo de la Visita *</label>
+                            <textarea id="rpt-reason" rows="3" placeholder="¿Por qué se solicitó la asistencia en el domicilio?" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Posible Causa</label>
+                            <textarea id="rpt-cause" rows="3" placeholder="Causa probable o detectada durante la revisión..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Solución</label>
+                            <textarea id="rpt-solution" rows="3" placeholder="Reparación, ajuste o acción aplicada..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Recomendación</label>
+                            <textarea id="rpt-recommendation" rows="3" placeholder="Recomendaciones preventivas o mejoras sugeridas..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"></textarea>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Detalle del Informe *</label>
+                            <textarea id="rpt-detail" rows="4" placeholder="Descripción detallada del trabajo realizado y observaciones..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Galería hasta 10 fotos comprimidas con epígrafes -->
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                                <i data-lucide="images" class="w-4 h-4"></i> Fotografías del Informe (Máximo 10)
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Se comprimen automáticamente para sincronizar rápido entre celular y PC/Mac.</p>
+                        </div>
+                        <div class="flex items-center gap-2.5">
+                            <span id="rpt-photo-counter" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-mono font-semibold text-emerald-400">
+                                0 / 10 fotos
+                            </span>
+                            <label id="rpt-add-photo-btn" class="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition">
+                                <i data-lucide="camera" class="w-4 h-4"></i> Agregar Fotos
+                                <input type="file" id="rpt-photos-input" accept="image/*" multiple class="hidden">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="rpt-photos-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                </div>
+
+                <!-- Firma del técnico instalador -->
+                <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                            <i data-lucide="pen-tool" class="w-4 h-4"></i> Firma del técnico instalador
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="useSavedTechSignature()" class="text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition">
+                                Usar firma guardada
+                            </button>
+                            <button type="button" onclick="clearReportTechPad()" class="text-xs text-slate-400 hover:text-white flex items-center gap-1">
+                                <i data-lucide="eraser" class="w-3.5 h-3.5"></i> Limpiar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Nombre del Técnico Instalador</label>
+                            <input type="text" id="rpt-tech-name" placeholder="Nombre del técnico instalador" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Cargo / Matrícula</label>
+                            <input type="text" id="rpt-tech-role" placeholder="Cargo o matrícula" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl overflow-hidden border-2 border-slate-700 max-w-md relative">
+                        <canvas id="rpt-tech-sig-canvas" width="420" height="145" class="touch-none-canvas w-full h-32 block cursor-crosshair"></canvas>
+                        <div class="absolute bottom-2 inset-x-4 border-b border-dashed border-slate-300 pointer-events-none"></div>
+                        <span class="absolute bottom-2 right-3 text-[10px] text-slate-400 pointer-events-none">Firma del técnico instalador</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-5 py-3.5 border-t border-slate-800 bg-slate-900 flex flex-wrap items-center justify-between gap-2">
+                <button type="button" onclick="closeReportModal()" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium text-slate-300 hover:bg-slate-800 transition">Cancelar</button>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="saveReportData(false)" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition">
+                        <i data-lucide="cloud-upload" class="w-4 h-4 text-emerald-400"></i> Guardar y Sincronizar
+                    </button>
+                    <button type="button" onclick="saveReportData(true)" class="bg-amber-600 hover:bg-amber-500 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-amber-600/20 flex items-center gap-1.5 transition">
+                        <i data-lucide="file-down" class="w-4 h-4"></i> Guardar y Generar PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         8. MODAL DE CONFIRMACIÓN
+         ===================================================================== -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-vault-900 border border-slate-700 w-full max-w-sm rounded-2xl p-5 space-y-4 shadow-2xl">
+            <h3 id="confirm-title" class="text-base font-bold text-white">Confirmar acción</h3>
+            <p id="confirm-msg" class="text-xs text-slate-300 leading-relaxed"></p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button id="confirm-cancel" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800">Cancelar</button>
+                <button id="confirm-ok" class="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-500 text-white">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         LÓGICA DE FIREBASE AUTH + FIRESTORE REAL-TIME + CIFRADO AES-256-GCM
+         ===================================================================== -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import {
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            GoogleAuthProvider,
+            signInWithPopup,
+            signInWithEmailAndPassword,
+            createUserWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import {
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc,
+            onSnapshot
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuración de Firebase desde entorno global
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'techvault-reportes-app';
+        let firebaseConfig = null;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                firebaseConfig = JSON.parse(__firebase_config);
+            }
+        } catch (err) {
+            console.warn('No se pudo analizar __firebase_config:', err);
+        }
+
+        let firebaseApp = null;
+        let auth = null;
+        let db = null;
+        let currentCloudUser = null;
+        let unsubscribeVaultSnapshot = null;
+        let latestCloudVaultDoc = null;
+        let lastAppliedCloudVersion = 0;
+
+        const STORAGE_VAULT_KEY = 'techvault_enc_v3';
+        const STORAGE_SALT_KEY  = 'techvault_salt_v3';
+        const IDB_NAME          = 'TechVaultCloudCacheDB';
+        const IDB_STORE         = 'snapshots';
+
+        let masterCryptoKey = null;
+        let currentSaltArray = null;
+        let appData = {
+            company: {
+                name: 'SC Seguridad Integral',
+                phone: '',
+                taxId: '',
+                address: '',
+                legalText: 'Garantía de 12 meses por defectos de instalación o fabricación. No cubre daños por descargas eléctricas, humedad o manipulación indebida.',
+                logoBase64: '',
+                defaultTechName: '',
+                defaultTechRole: '',
+                defaultTechSignature: ''
+            },
+            clients: [],
+            reports: []
+        };
+
+        let activeMainTab = 'clients';
+        let currentCategoryFilter = 'ALL';
+        let tempEquipments = [];
+        let tempReportPhotos = [];
+        let currentPattern = [];
+        let currentEqPhotoBase64 = '';
+        let secretFieldsVisible = true;
+        let activePdfClientId = null;
+        let isNewClientInReport = false;
+        let qrStream = null;
+        let qrAnimFrame = null;
+
+        // =====================================================================
+        // UTILIDADES UI Y ESTADO DE SINCRONIZACIÓN
+        // =====================================================================
+        function hideSplashLoader() {
+            const loader = document.getElementById('splash-loader');
+            if (loader) loader.classList.add('hidden');
+        }
+
+        function refreshIcons() {
+            try {
+                if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                    window.lucide.createIcons();
+                }
+            } catch (e) {}
+        }
+
+        function updateSyncBadge(status, labelText) {
+            const dot = document.getElementById('sync-status-dot');
+            const text = document.getElementById('sync-status-text');
+            const badge = document.getElementById('sync-status-badge');
+            if (!dot || !text || !badge) return;
+
+            const themes = {
+                synced:  { dot: 'bg-emerald-400', text: 'text-emerald-400' },
+                syncing: { dot: 'bg-amber-400 animate-ping', text: 'text-amber-300' },
+                offline: { dot: 'bg-slate-400', text: 'text-slate-400' }
+            };
+            const t = themes[status] || themes.offline;
+            dot.className = `w-2 h-2 rounded-full ${t.dot}`;
+            badge.className = `inline-flex items-center gap-1.5 text-[11px] font-medium ${t.text}`;
+            text.textContent = labelText;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const styles = {
+                success: 'bg-emerald-950/95 border-emerald-500/50 text-emerald-200',
+                error:   'bg-red-950/95 border-red-500/50 text-red-200',
+                info:    'bg-slate-900/95 border-blue-500/50 text-slate-100'
+            };
+            const icons = { success: 'check-circle-2', error: 'alert-circle', info: 'info' };
+            const el = document.createElement('div');
+            el.className = `pointer-events-auto border ${styles[type] || styles.info} px-4 py-3 rounded-xl shadow-xl backdrop-blur-md text-xs font-medium flex items-center gap-2.5 transition-all duration-300`;
+            el.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span>${escapeHtml(message)}</span>`;
+            container.appendChild(el);
+            refreshIcons();
+            setTimeout(() => {
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 250);
+            }, 3500);
+        }
+
+        function customConfirm(title, message) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirm-modal');
+                document.getElementById('confirm-title').textContent = title;
+                document.getElementById('confirm-msg').textContent = message;
+                modal.classList.remove('hidden');
+                const finish = (val) => {
+                    modal.classList.add('hidden');
+                    resolve(val);
+                };
+                document.getElementById('confirm-ok').onclick = () => finish(true);
+                document.getElementById('confirm-cancel').onclick = () => finish(false);
+            });
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/[&<>"']/g, (m) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        function escapeJs(str) {
+            return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+
+        // =====================================================================
+        // CACHÉ LOCAL (INDEXEDDB + LOCALSTORAGE)
+        // =====================================================================
+        function openIndexedDb() {
+            return new Promise((resolve) => {
+                try {
+                    if (!window.indexedDB) return resolve(null);
+                    const req = window.indexedDB.open(IDB_NAME, 1);
+                    req.onupgradeneeded = (e) => {
+                        const idb = e.target.result;
+                        if (!idb.objectStoreNames.contains(IDB_STORE)) {
+                            idb.createObjectStore(IDB_STORE);
+                        }
+                    };
+                    req.onsuccess = (e) => resolve(e.target.result);
+                    req.onerror = () => resolve(null);
+                } catch (err) {
+                    resolve(null);
+                }
+            });
+        }
+
+        async function saveLocalCache(encryptedBundle) {
+            try {
+                localStorage.setItem(STORAGE_VAULT_KEY, JSON.stringify(encryptedBundle.vault));
+                localStorage.setItem(STORAGE_SALT_KEY, JSON.stringify(encryptedBundle.salt));
+                const idb = await openIndexedDb();
+                if (idb) {
+                    const tx = idb.transaction(IDB_STORE, 'readwrite');
+                    tx.objectStore(IDB_STORE).put(encryptedBundle, 'vault_cached');
+                }
+            } catch (e) {
+                console.warn('Aviso al guardar caché local:', e);
+            }
+        }
+
+        function readLocalCache() {
+            try {
+                const v = localStorage.getItem(STORAGE_VAULT_KEY);
+                const s = localStorage.getItem(STORAGE_SALT_KEY);
+                if (v && s) {
+                    return { vault: JSON.parse(v), salt: JSON.parse(s) };
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        // =====================================================================
+        // CIFRADO AES-256-GCM ZERO-KNOWLEDGE (WEB CRYPTO API)
+        // =====================================================================
+        async function deriveKeyFromPassword(password, saltBytes) {
+            const enc = new TextEncoder();
+            const keyMaterial = await window.crypto.subtle.importKey(
+                'raw',
+                enc.encode(password),
+                { name: 'PBKDF2' },
+                false,
+                ['deriveKey']
+            );
+            return window.crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt: saltBytes, iterations: 150000, hash: 'SHA-256' },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['encrypt', 'decrypt']
+            );
+        }
+
+        async function encryptPayload(dataObj, cryptoKey) {
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const enc = new TextEncoder();
+            const plainBytes = enc.encode(JSON.stringify(dataObj));
+            const cipherBuffer = await window.crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv },
+                cryptoKey,
+                plainBytes
+            );
+            return {
+                iv: Array.from(iv),
+                ciphertext: Array.from(new Uint8Array(cipherBuffer))
+            };
+        }
+
+        async function decryptPayload(encryptedObj, cryptoKey) {
+            const iv = new Uint8Array(encryptedObj.iv);
+            const ciphertext = new Uint8Array(encryptedObj.ciphertext);
+            const plainBuffer = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv },
+                cryptoKey,
+                ciphertext
+            );
+            const dec = new TextDecoder();
+            return JSON.parse(dec.decode(plainBuffer));
+        }
+
+        function getUserVaultDocRef(userId) {
+            if (!db || !userId) return null;
+            return doc(db, 'artifacts', appId, 'users', userId, 'vault', 'main');
+        }
+
+        async function persistAndSyncVault() {
+            if (!masterCryptoKey || !currentSaltArray) return;
+            updateSyncBadge('syncing', 'Sincronizando...');
+
+            try {
+                const encrypted = await encryptPayload(appData, masterCryptoKey);
+                const version = Date.now();
+                const bundle = {
+                    salt: currentSaltArray,
+                    vault: encrypted,
+                    updatedAt: new Date().toISOString(),
+                    version
+                };
+
+                // 1. Caché local inmediato
+                await saveLocalCache(bundle);
+
+                // 2. Subida cifrada a Firestore si hay usuario autenticado
+                if (db && currentCloudUser) {
+                    const docRef = getUserVaultDocRef(currentCloudUser.uid);
+                    lastAppliedCloudVersion = version;
+                    await setDoc(docRef, {
+                        saltJson: JSON.stringify(currentSaltArray),
+                        ivJson: JSON.stringify(encrypted.iv),
+                        ciphertextJson: JSON.stringify(encrypted.ciphertext),
+                        updatedAt: bundle.updatedAt,
+                        version
+                    });
+                    const nowStr = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    document.getElementById('settings-last-sync').textContent = `${new Date().toLocaleDateString('es-AR')} ${nowStr}`;
+                    updateSyncBadge('synced', 'Sincronizado en la nube');
+                } else {
+                    updateSyncBadge('offline', 'Sin conexión / Local');
+                }
+            } catch (err) {
+                console.error('Error sincronizando con la nube:', err);
+                updateSyncBadge('offline', 'Sin conexión / Local');
+                showToast('Guardado localmente. Revisá tu conexión para subir a la nube.', 'info');
+            }
+        }
+
+        async function forceCloudSync() {
+            if (!db || !currentCloudUser || !masterCryptoKey) {
+                showToast('Iniciá sesión en la nube para sincronizar.', 'info');
+                return;
+            }
+            updateSyncBadge('syncing', 'Sincronizando...');
+            try {
+                const docRef = getUserVaultDocRef(currentCloudUser.uid);
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    const remote = snap.data();
+                    if ((remote.version || 0) > lastAppliedCloudVersion) {
+                        await applyRemoteEncryptedDoc(remote, true);
+                        showToast('Datos actualizados desde la nube.', 'success');
+                        return;
+                    }
+                }
+                await persistAndSyncVault();
+                showToast('Bóveda sincronizada con la nube.', 'success');
+            } catch (err) {
+                console.error(err);
+                updateSyncBadge('offline', 'Sin conexión / Local');
+                showToast('No se pudo contactar el servidor.', 'error');
+            }
+        }
+
+        async function applyRemoteEncryptedDoc(remoteData, notifyUser = false) {
+            if (!remoteData || !remoteData.saltJson || !remoteData.ivJson || !remoteData.ciphertextJson) return;
+            const parsedBundle = {
+                salt: JSON.parse(remoteData.saltJson),
+                vault: {
+                    iv: JSON.parse(remoteData.ivJson),
+                    ciphertext: JSON.parse(remoteData.ciphertextJson)
+                },
+                version: remoteData.version || Date.now(),
+                updatedAt: remoteData.updatedAt || new Date().toISOString()
+            };
+
+            latestCloudVaultDoc = parsedBundle;
+            await saveLocalCache(parsedBundle);
+
+            if (masterCryptoKey && parsedBundle.version > lastAppliedCloudVersion) {
+                try {
+                    const keyForRemote = await deriveKeyFromPassword(
+                        window.__sessionMasterPassPlain || '',
+                        new Uint8Array(parsedBundle.salt)
+                    );
+                    const decrypted = await decryptPayload(parsedBundle.vault, keyForRemote);
+                    masterCryptoKey = keyForRemote;
+                    currentSaltArray = parsedBundle.salt;
+                    lastAppliedCloudVersion = parsedBundle.version;
+                    appData = normalizeVaultData(decrypted);
+
+                    applyCompanyBranding();
+                    renderClients();
+                    renderReports();
+                    if (activeMainTab === 'settings') loadCompanySettingsForm();
+                    updateSyncBadge('synced', 'Sincronizado en la nube');
+                    const nowStr = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    document.getElementById('settings-last-sync').textContent = `${new Date().toLocaleDateString('es-AR')} ${nowStr}`;
+                    if (notifyUser) showToast('Cambios recibidos desde otro dispositivo.', 'info');
+                } catch (err) {
+                    console.warn('No se pudo descifrar actualización remota automáticamente:', err);
+                }
+            }
+        }
+
+        // =====================================================================
+        // INICIALIZACIÓN DE FIREBASE AUTH Y ESCUCHA EN TIEMPO REAL
+        // =====================================================================
+        async function initFirebaseAndAuth() {
+            if (!firebaseConfig) {
+                document.getElementById('auth-cloud-badge').textContent = 'Modo Local';
+                refreshVaultUnlockState();
+                return;
+            }
+
+            firebaseApp = initializeApp(firebaseConfig);
+            auth = getAuth(firebaseApp);
+            db = getFirestore(firebaseApp);
+
+            // Regla 3: Autenticar antes de consultar Firestore
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else if (!auth.currentUser) {
+                    await signInAnonymously(auth);
+                }
+            } catch (authErr) {
+                console.warn('Aviso inicial de autenticación:', authErr);
+            }
+
+            onAuthStateChanged(auth, async (user) => {
+                currentCloudUser = user || null;
+                if (unsubscribeVaultSnapshot) {
+                    unsubscribeVaultSnapshot();
+                    unsubscribeVaultSnapshot = null;
+                }
+
+                updateCloudAccountUI(user);
+
+                if (user) {
+                    const docRef = getUserVaultDocRef(user.uid);
+                    try {
+                        const initialSnap = await getDoc(docRef);
+                        if (initialSnap.exists()) {
+                            await applyRemoteEncryptedDoc(initialSnap.data(), false);
+                        } else {
+                            latestCloudVaultDoc = null;
+                        }
+                    } catch (err) {
+                        console.warn('Error leyendo bóveda inicial en Firestore:', err);
+                    }
+
+                    // Suscripción en tiempo real entre celular y PC/Mac
+                    unsubscribeVaultSnapshot = onSnapshot(
+                        docRef,
+                        async (snapshot) => {
+                            if (snapshot.exists()) {
+                                await applyRemoteEncryptedDoc(snapshot.data(), Boolean(masterCryptoKey));
+                            }
+                        },
+                        (error) => {
+                            console.error('Error en onSnapshot de bóveda:', error);
+                            updateSyncBadge('offline', 'Sin conexión / Local');
+                        }
+                    );
+                }
+
+                refreshVaultUnlockState();
+            });
+        }
+
+        function updateCloudAccountUI(user) {
+            const badge = document.getElementById('auth-cloud-badge');
+            const signedBox = document.getElementById('signed-in-account-info');
+            const emailEl = document.getElementById('account-display-email');
+            const uidEl = document.getElementById('account-display-uid');
+            const settingsAcc = document.getElementById('settings-cloud-account');
+            const settingsUid = document.getElementById('settings-cloud-uid');
+
+            if (user) {
+                const isAnon = user.isAnonymous;
+                const label = user.email || (isAnon ? 'Sesión Rápida Cloud' : 'Cuenta Vinculada');
+                badge.textContent = isAnon ? 'Cloud Activo' : 'Sincronizado';
+                badge.className = 'text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+                signedBox.classList.remove('hidden');
+                emailEl.textContent = label;
+                uidEl.textContent = `UID: ${user.uid}`;
+                if (settingsAcc) settingsAcc.textContent = label;
+                if (settingsUid) settingsUid.textContent = user.uid;
+            } else {
+                badge.textContent = 'Desconectado';
+                badge.className = 'text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+                signedBox.classList.add('hidden');
+                if (settingsAcc) settingsAcc.textContent = 'Sin sesión';
+                if (settingsUid) settingsUid.textContent = '-';
+            }
+        }
+
+        function refreshVaultUnlockState() {
+            const setupForm = document.getElementById('setup-form');
+            const unlockForm = document.getElementById('unlock-form');
+            const hint = document.getElementById('vault-source-hint');
+            const localBundle = readLocalCache();
+            const existingBundle = latestCloudVaultDoc || localBundle;
+
+            if (existingBundle && existingBundle.vault && existingBundle.salt) {
+                setupForm.classList.add('hidden');
+                unlockForm.classList.remove('hidden');
+                hint.innerHTML = latestCloudVaultDoc
+                    ? `<i data-lucide="cloud-download" class="w-4 h-4 shrink-0"></i><span>Bóveda cifrada encontrada en la nube. Ingresá tu Contraseña Maestra.</span>`
+                    : `<i data-lucide="hard-drive" class="w-4 h-4 shrink-0"></i><span>Bóveda local cifrada detectada. Ingresá tu Contraseña Maestra.</span>`;
+            } else {
+                setupForm.classList.remove('hidden');
+                unlockForm.classList.add('hidden');
+            }
+
+            if (!masterCryptoKey) {
+                document.getElementById('auth-screen').classList.remove('hidden');
+            }
+            refreshIcons();
+        }
+
+        // =====================================================================
+        // ARRANQUE SEGURO CON TRY / FINALLY
+        // =====================================================================
+        async function bootstrapApplication() {
+            try {
+                refreshIcons();
+                initPatternPad();
+                initSignaturePad('signature-canvas');
+                initSignaturePad('default-tech-sig-canvas');
+                initSignaturePad('rpt-tech-sig-canvas');
+                bindEvents();
+                await initFirebaseAndAuth();
+            } catch (err) {
+                console.error('Error iniciando TechVault:', err);
+                refreshVaultUnlockState();
+            } finally {
+                hideSplashLoader();
+            }
+        }
+
+        bootstrapApplication();
+
+        function enterApp() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-shell').classList.remove('hidden');
+            applyCompanyBranding();
+            renderClients();
+            renderReports();
+            updateSyncBadge(db && currentCloudUser ? 'synced' : 'offline', db && currentCloudUser ? 'Sincronizado en la nube' : 'Sin conexión / Local');
+            refreshIcons();
+        }
+
+        function lockVault() {
+            masterCryptoKey = null;
+            window.__sessionMasterPassPlain = '';
+            document.getElementById('app-shell').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            refreshVaultUnlockState();
+            showToast('Bóveda bloqueada.', 'info');
+        }
+
+        function normalizeVaultData(raw) {
+            const base = {
+                company: {
+                    name: 'SC Seguridad Integral',
+                    phone: '',
+                    taxId: '',
+                    address: '',
+                    legalText: 'Garantía de 12 meses por defectos de instalación o fabricación.',
+                    logoBase64: '',
+                    defaultTechName: '',
+                    defaultTechRole: '',
+                    defaultTechSignature: ''
+                },
+                clients: [],
+                reports: []
+            };
+            if (!raw || typeof raw !== 'object') return base;
+            return {
+                company: Object.assign({}, base.company, raw.company || {}),
+                clients: Array.isArray(raw.clients) ? raw.clients : [],
+                reports: Array.isArray(raw.reports) ? raw.reports : []
+            };
+        }
+
+        // =====================================================================
+        // RESPALDOS CIFRADOS (.ENC)
+        // =====================================================================
+        async function exportEncryptedBackup() {
+            if (!masterCryptoKey || !currentSaltArray) return;
+            try {
+                const encrypted = await encryptPayload(appData, masterCryptoKey);
+                const bundle = {
+                    format: 'TechVault-AES256GCM-v3',
+                    exportedAt: new Date().toISOString(),
+                    salt: currentSaltArray,
+                    vault: encrypted
+                };
+                const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `TechVault_Backup_${new Date().toISOString().slice(0, 10)}.enc`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                showToast('Respaldo cifrado (.enc) descargado.', 'success');
+            } catch (err) {
+                showToast('Error al exportar backup.', 'error');
+            }
+        }
+
+        async function handleImportBackupFile(file, fromAuthScreen = false) {
+            if (!file) return;
+            try {
+                const parsed = JSON.parse(await file.text());
+                if (!parsed || !parsed.vault || !Array.isArray(parsed.salt)) {
+                    showToast('Archivo .enc inválido.', 'error');
+                    return;
+                }
+
+                if (fromAuthScreen) {
+                    const pass = document.getElementById('unlock-pass').value;
+                    if (!pass) {
+                        showToast('Ingresá tu Contraseña Maestra para descifrar el backup.', 'error');
+                        return;
+                    }
+                    const key = await deriveKeyFromPassword(pass, new Uint8Array(parsed.salt));
+                    const decrypted = await decryptPayload(parsed.vault, key);
+
+                    masterCryptoKey = key;
+                    currentSaltArray = parsed.salt;
+                    window.__sessionMasterPassPlain = pass;
+                    appData = normalizeVaultData(decrypted);
+                    await persistAndSyncVault();
+                    document.getElementById('unlock-pass').value = '';
+                    enterApp();
+                    showToast('Respaldo importado y sincronizado en la nube.', 'success');
+                } else {
+                    if (!masterCryptoKey) return;
+                    const ok = await customConfirm('¿Importar respaldo?', 'Se reemplazarán los datos actuales y se sincronizarán en la nube.');
+                    if (!ok) return;
+                    const decrypted = await decryptPayload(parsed.vault, masterCryptoKey);
+                    appData = normalizeVaultData(decrypted);
+                    await persistAndSyncVault();
+                    applyCompanyBranding();
+                    loadCompanySettingsForm();
+                    renderClients();
+                    renderReports();
+                    showToast('Backup restaurado y sincronizado.', 'success');
+                }
+            } catch (err) {
+                showToast('Contraseña maestra incorrecta o archivo dañado.', 'error');
+            }
+        }
+
+        // =====================================================================
+        // NAVEGACIÓN Y PERFIL DE EMPRESA
+        // =====================================================================
+        window.switchTab = function(tabName) {
+            activeMainTab = tabName;
+            document.getElementById('view-clients').classList.toggle('hidden', tabName !== 'clients');
+            document.getElementById('view-reports').classList.toggle('hidden', tabName !== 'reports');
+            document.getElementById('view-settings').classList.toggle('hidden', tabName !== 'settings');
+
+            const actionBtn = document.getElementById('header-primary-action');
+            const actionLabel = document.getElementById('header-primary-label');
+
+            if (tabName === 'reports') {
+                actionBtn.className = 'bg-amber-600 hover:bg-amber-500 text-white text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl shadow-lg shadow-amber-600/20 flex items-center gap-1.5 transition';
+                actionLabel.textContent = 'Nuevo Informe';
+                renderReports();
+            } else {
+                actionBtn.className = 'bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl shadow-lg shadow-blue-600/20 flex items-center gap-1.5 transition';
+                actionLabel.textContent = 'Nuevo Cliente';
+                if (tabName === 'clients') renderClients();
+            }
+
+            document.querySelectorAll('.nav-btn').forEach((btn) => {
+                const isActive = btn.dataset.tab === tabName;
+                btn.className = isActive
+                    ? 'nav-btn px-3.5 py-2 rounded-lg text-xs lg:text-sm font-medium transition flex items-center gap-2 bg-blue-600 text-white'
+                    : 'nav-btn px-3.5 py-2 rounded-lg text-xs lg:text-sm font-medium transition flex items-center gap-2 text-slate-400 hover:text-white';
+            });
+
+            document.querySelectorAll('.nav-btn-mobile').forEach((btn) => {
+                const isActive = btn.dataset.tab === tabName;
+                btn.classList.toggle('text-blue-400', isActive);
+                btn.classList.toggle('text-slate-400', !isActive);
+            });
+
+            if (tabName === 'settings') loadCompanySettingsForm();
+            refreshIcons();
+        };
+
+        window.handleHeaderPrimaryAction = function() {
+            if (activeMainTab === 'reports') openReportModal();
+            else openClientModal();
+        };
+
+        window.forceCloudSync = forceCloudSync;
+        window.lockVault = lockVault;
+        window.exportEncryptedBackup = exportEncryptedBackup;
+
+        function applyCompanyBranding() {
+            const comp = appData.company || {};
+            document.getElementById('header-company-name').textContent = comp.name || 'SC Seguridad Integral';
+            const headerLogo = document.getElementById('header-logo-container');
+            if (comp.logoBase64) {
+                headerLogo.innerHTML = `<img src="${comp.logoBase64}" alt="Logo" class="w-full h-full object-cover">`;
+            } else {
+                headerLogo.innerHTML = `<i data-lucide="shield" class="w-5 h-5"></i>`;
+            }
+            refreshIcons();
+        }
+
+        function loadCompanySettingsForm() {
+            const comp = appData.company || {};
+            document.getElementById('cfg-name').value = comp.name || '';
+            document.getElementById('cfg-phone').value = comp.phone || '';
+            document.getElementById('cfg-tax').value = comp.taxId || '';
+            document.getElementById('cfg-address').value = comp.address || '';
+            document.getElementById('cfg-legal').value = comp.legalText || '';
+            document.getElementById('cfg-tech-name').value = comp.defaultTechName || '';
+            document.getElementById('cfg-tech-role').value = comp.defaultTechRole || '';
+
+            const preview = document.getElementById('settings-logo-preview');
+            preview.innerHTML = comp.logoBase64
+                ? `<img src="${comp.logoBase64}" alt="Logo" class="w-full h-full object-cover">`
+                : `<i data-lucide="image" class="w-6 h-6"></i>`;
+
+            clearCanvasById('default-tech-sig-canvas');
+            if (comp.defaultTechSignature) {
+                drawImageOnCanvas('default-tech-sig-canvas', comp.defaultTechSignature);
+            }
+            refreshIcons();
+        }
+
+        window.removeCompanyLogo = function() {
+            appData.company.logoBase64 = '';
+            loadCompanySettingsForm();
+            applyCompanyBranding();
+        };
+
+        window.clearDefaultTechSigPad = function() {
+            clearCanvasById('default-tech-sig-canvas');
+        };
+
+        // =====================================================================
+        // PESTAÑA 1: CLIENTES Y EQUIPOS
+        // =====================================================================
+        window.setCategoryFilter = function(cat) {
+            currentCategoryFilter = cat;
+            document.querySelectorAll('.cat-chip').forEach((chip) => {
+                const active = chip.dataset.cat === cat;
+                chip.className = active
+                    ? 'cat-chip px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white whitespace-nowrap transition flex items-center gap-1.5'
+                    : 'cat-chip px-3.5 py-1.5 rounded-xl text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 whitespace-nowrap transition flex items-center gap-1.5';
+            });
+            renderClients();
+        };
+
+        window.clearSearch = function() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('clear-search').classList.add('hidden');
+            renderClients();
+        };
+
+        window.renderClients = function() {
+            const query = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+            const clearBtn = document.getElementById('clear-search');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !query);
+
+            const clients = appData.clients || [];
+            document.getElementById('count-all').textContent = clients.length;
+
+            const filtered = clients.filter((cli) => {
+                const eqs = Array.isArray(cli.equipments) ? cli.equipments : [];
+                const matchesCat = currentCategoryFilter === 'ALL' || eqs.some((e) => e.category === currentCategoryFilter);
+                if (!matchesCat) return false;
+                if (!query) return true;
+
+                const inClient = (cli.name || '').toLowerCase().includes(query) ||
+                                 (cli.phone || '').toLowerCase().includes(query) ||
+                                 (cli.address || '').toLowerCase().includes(query);
+                const inEquip = eqs.some((e) =>
+                    (e.model || '').toLowerCase().includes(query) ||
+                    (e.sn || '').toLowerCase().includes(query) ||
+                    (e.qr || '').toLowerCase().includes(query) ||
+                    (e.category || '').toLowerCase().includes(query)
+                );
+                return inClient || inEquip;
+            });
+
+            const grid = document.getElementById('clients-grid');
+            const empty = document.getElementById('empty-state');
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                empty.classList.remove('hidden');
+                refreshIcons();
+                return;
+            }
+
+            empty.classList.add('hidden');
+            grid.innerHTML = filtered.map((cli) => {
+                const eqs = Array.isArray(cli.equipments) ? cli.equipments : [];
+                const cleanPhone = (cli.phone || '').replace(/\D/g, '');
+                const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}` : '';
+
+                const eqBadges = eqs.slice(0, 3).map((eq) => `
+                    <div class="bg-slate-950/80 border border-slate-800/90 rounded-xl px-3 py-2 flex items-center justify-between gap-2 text-xs">
+                        <div class="min-w-0">
+                            <span class="font-semibold text-blue-400 mr-1.5">[${escapeHtml(eq.category)}]</span>
+                            <span class="text-white font-medium">${escapeHtml(eq.model)}</span>
+                            ${eq.sn ? `<span class="block text-[11px] font-mono text-slate-400 truncate">SN: ${escapeHtml(eq.sn)}</span>` : ''}
+                        </div>
+                        ${eq.pass ? `<span class="text-[10px] font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-md shrink-0">Clave</span>` : ''}
+                    </div>
+                `).join('');
+
+                return `
+                <article class="bg-vault-900 border border-slate-800 hover:border-blue-500/40 rounded-2xl p-4 sm:p-5 flex flex-col justify-between gap-4 shadow-lg transition">
+                    <div class="space-y-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <h3 class="text-base font-bold text-white truncate">${escapeHtml(cli.name)}</h3>
+                                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-slate-400">
+                                    ${cli.phone ? `<span class="flex items-center gap-1"><i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i> ${escapeHtml(cli.phone)}</span>` : ''}
+                                    ${cli.address ? `<span class="flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5 text-blue-400"></i> ${escapeHtml(cli.address)}</span>` : ''}
+                                </div>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-blue-400 shrink-0">
+                                ${eqs.length} eq.
+                            </span>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            ${eqBadges || `<div class="text-xs text-slate-500 italic bg-slate-950/50 rounded-xl p-2.5 border border-slate-800/60">Sin equipos registrados aún.</div>`}
+                            ${eqs.length > 3 ? `<div class="text-[11px] text-slate-400 pl-1">+ ${eqs.length - 3} equipo(s) más...</div>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5">
+                            ${waUrl ? `
+                            <a href="${waUrl}" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition">
+                                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> WhatsApp
+                            </a>` : ''}
+                            <button onclick="openPdfModal('${escapeJs(cli.id)}')" class="px-3 py-2 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 text-xs font-semibold flex items-center gap-1.5 transition">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i> PDF
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="openClientModal('${escapeJs(cli.id)}')" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition" title="Editar cliente">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteClient('${escapeJs(cli.id)}')" class="p-2 rounded-xl bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition" title="Eliminar cliente">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </article>`;
+            }).join('');
+
+            refreshIcons();
+        };
+
+        window.openClientModal = function(clientId = null) {
+            document.getElementById('edit-client-id').value = clientId || '';
+            if (clientId) {
+                const cli = (appData.clients || []).find((c) => c.id === clientId);
+                if (!cli) return;
+                document.getElementById('client-modal-title').innerHTML = `<i data-lucide="user-check" class="w-5 h-5 text-blue-400"></i> <span>Editar Cliente y Equipos</span>`;
+                document.getElementById('cli-name').value = cli.name || '';
+                document.getElementById('cli-phone').value = cli.phone || '';
+                document.getElementById('cli-address').value = cli.address || '';
+                tempEquipments = JSON.parse(JSON.stringify(cli.equipments || []));
+            } else {
+                document.getElementById('client-modal-title').innerHTML = `<i data-lucide="user-plus" class="w-5 h-5 text-blue-400"></i> <span>Nuevo Cliente</span>`;
+                document.getElementById('cli-name').value = '';
+                document.getElementById('cli-phone').value = '';
+                document.getElementById('cli-address').value = '';
+                tempEquipments = [];
+            }
+            renderModalEquipmentsList();
+            document.getElementById('client-modal').classList.remove('hidden');
+            refreshIcons();
+        };
+
+        window.closeClientModal = function() {
+            document.getElementById('client-modal').classList.add('hidden');
+        };
+
+        function renderModalEquipmentsList() {
+            document.getElementById('eq-count-label').textContent = tempEquipments.length;
+            const list = document.getElementById('modal-equipments-list');
+
+            if (tempEquipments.length === 0) {
+                list.innerHTML = `<div class="text-xs text-slate-500 bg-slate-950/50 border border-dashed border-slate-800 rounded-xl p-4 text-center">No hay equipos cargados en esta ficha. Tocá "Agregar Equipo".</div>`;
+                return;
+            }
+
+            list.innerHTML = tempEquipments.map((eq, idx) => `
+                <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        ${eq.photo ? `<img src="${eq.photo}" class="w-12 h-12 rounded-lg object-cover border border-slate-700 shrink-0" alt="Equipo">` : `
+                        <div class="w-12 h-12 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-blue-400 shrink-0">
+                            <i data-lucide="cpu" class="w-5 h-5"></i>
+                        </div>`}
+                        <div class="min-w-0">
+                            <div class="text-xs font-bold text-white truncate">
+                                <span class="text-blue-400 mr-1">[${escapeHtml(eq.category)}]</span> ${escapeHtml(eq.model)}
+                            </div>
+                            <div class="text-[11px] font-mono text-slate-400 truncate">
+                                ${eq.sn ? `SN: ${escapeHtml(eq.sn)}` : ''} ${eq.qr ? `• QR: ${escapeHtml(eq.qr)}` : ''}
+                            </div>
+                            <div class="text-[11px] font-mono text-emerald-400 truncate">
+                                ${eq.pass ? `Clave: ${escapeHtml(eq.pass)}` : ''} ${eq.pattern && eq.pattern.length ? `• Patrón: [${eq.pattern.map((n) => n + 1).join('-')}]` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button type="button" onclick="openEquipmentForm(${idx})" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button type="button" onclick="removeTempEquipment(${idx})" class="p-2 rounded-lg bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            refreshIcons();
+        }
+
+        window.removeTempEquipment = function(idx) {
+            tempEquipments.splice(idx, 1);
+            renderModalEquipmentsList();
+        };
+
+        window.saveClientData = async function() {
+            const name = document.getElementById('cli-name').value.trim();
+            const phone = document.getElementById('cli-phone').value.trim();
+            const address = document.getElementById('cli-address').value.trim();
+
+            if (!name || !phone) {
+                showToast('Completá Nombre y Apellido y Teléfono del cliente.', 'error');
+                return;
+            }
+
+            const editId = document.getElementById('edit-client-id').value;
+            if (!Array.isArray(appData.clients)) appData.clients = [];
+
+            if (editId) {
+                const idx = appData.clients.findIndex((c) => c.id === editId);
+                if (idx !== -1) {
+                    appData.clients[idx] = Object.assign({}, appData.clients[idx], {
+                        name,
+                        phone,
+                        address,
+                        equipments: JSON.parse(JSON.stringify(tempEquipments)),
+                        updatedAt: new Date().toISOString()
+                    });
+                }
+            } else {
+                appData.clients.unshift({
+                    id: 'cli_' + Date.now(),
+                    name,
+                    phone,
+                    address,
+                    equipments: JSON.parse(JSON.stringify(tempEquipments)),
+                    updatedAt: new Date().toISOString()
+                });
+            }
+
+            await persistAndSyncVault();
+            renderClients();
+            closeClientModal();
+            showToast('Cliente guardado y sincronizado.', 'success');
+        };
+
+        window.deleteClient = async function(clientId) {
+            const ok = await customConfirm('¿Eliminar cliente?', 'Se eliminará este cliente y sus equipos en todos tus dispositivos.');
+            if (!ok) return;
+            appData.clients = (appData.clients || []).filter((c) => c.id !== clientId);
+            await persistAndSyncVault();
+            renderClients();
+            showToast('Cliente eliminado.', 'info');
+        };
+
+        // =====================================================================
+        // FORMULARIO DE EQUIPO + PATRÓN 3x3 INTERACTIVO
+        // =====================================================================
+        window.openEquipmentForm = function(editIndex = -1) {
+            document.getElementById('eq-edit-index').value = editIndex;
+            secretFieldsVisible = true;
+            updateSecretVisibilityUI();
+
+            if (editIndex >= 0 && tempEquipments[editIndex]) {
+                const eq = tempEquipments[editIndex];
+                document.getElementById('eq-modal-title').textContent = 'Editar Equipo';
+                document.getElementById('eq-category').value = eq.category || 'CCTV';
+                document.getElementById('eq-model').value = eq.model || '';
+                document.getElementById('eq-sn').value = eq.sn || '';
+                document.getElementById('eq-qr').value = eq.qr || '';
+                document.getElementById('eq-pass').value = eq.pass || '';
+                currentPattern = Array.isArray(eq.pattern) ? [...eq.pattern] : [];
+                currentEqPhotoBase64 = eq.photo || '';
+            } else {
+                document.getElementById('eq-modal-title').textContent = 'Agregar Equipo';
+                document.getElementById('eq-category').value = 'CCTV';
+                document.getElementById('eq-model').value = '';
+                document.getElementById('eq-sn').value = '';
+                document.getElementById('eq-qr').value = '';
+                document.getElementById('eq-pass').value = '';
+                currentPattern = [];
+                currentEqPhotoBase64 = '';
+            }
+
+            updatePatternUI();
+            updateEqPhotoUI();
+            document.getElementById('equipment-modal').classList.remove('hidden');
+            refreshIcons();
+        };
+
+        window.closeEquipmentForm = function() {
+            document.getElementById('equipment-modal').classList.add('hidden');
+        };
+
+        window.toggleSecretFieldsVisibility = function() {
+            secretFieldsVisible = !secretFieldsVisible;
+            updateSecretVisibilityUI();
+        };
+
+        function updateSecretVisibilityUI() {
+            document.getElementById('eq-pass').type = secretFieldsVisible ? 'text' : 'password';
+            document.getElementById('pattern-section').classList.toggle('opacity-25', !secretFieldsVisible);
+            document.getElementById('secret-vis-label').textContent = secretFieldsVisible ? 'Ocultar' : 'Mostrar';
+        }
+
+        function updateEqPhotoUI() {
+            const img = document.getElementById('eq-photo-preview');
+            const rem = document.getElementById('eq-photo-remove');
+            if (currentEqPhotoBase64) {
+                img.src = currentEqPhotoBase64;
+                img.classList.remove('hidden');
+                rem.classList.remove('hidden');
+            } else {
+                img.src = '';
+                img.classList.add('hidden');
+                rem.classList.add('hidden');
+            }
+        }
+
+        window.removeEqPhoto = function() {
+            currentEqPhotoBase64 = '';
+            document.getElementById('eq-photo-input').value = '';
+            updateEqPhotoUI();
+        };
+
+        window.saveEquipmentItem = function() {
+            const category = document.getElementById('eq-category').value;
+            const model = document.getElementById('eq-model').value.trim();
+            if (!model) {
+                showToast('Ingresá el nombre o marca/modelo del equipo.', 'error');
+                return;
+            }
+            const item = {
+                category,
+                model,
+                sn: document.getElementById('eq-sn').value.trim(),
+                qr: document.getElementById('eq-qr').value.trim(),
+                pass: document.getElementById('eq-pass').value,
+                pattern: [...currentPattern],
+                photo: currentEqPhotoBase64
+            };
+            const editIndex = parseInt(document.getElementById('eq-edit-index').value, 10);
+            if (editIndex >= 0 && tempEquipments[editIndex]) {
+                tempEquipments[editIndex] = item;
+            } else {
+                tempEquipments.push(item);
+            }
+            renderModalEquipmentsList();
+            closeEquipmentForm();
+        };
+
+        function initPatternPad() {
+            const canvas = document.getElementById('pattern-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let isDrawing = false;
+
+            const nodes = [];
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    nodes.push({ x: 32 + c * 48, y: 32 + r * 48 });
+                }
+            }
+
+            window.drawPatternCanvas = function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (currentPattern.length > 1) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = '#3b82f6';
+                    ctx.lineWidth = 3.5;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    currentPattern.forEach((idx, i) => {
+                        const pt = nodes[idx];
+                        if (i === 0) ctx.moveTo(pt.x, pt.y);
+                        else ctx.lineTo(pt.x, pt.y);
+                    });
+                    ctx.stroke();
+                }
+                nodes.forEach((pt, idx) => {
+                    const selected = currentPattern.includes(idx);
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, selected ? 11 : 8, 0, Math.PI * 2);
+                    ctx.fillStyle = selected ? '#3b82f6' : '#1e293b';
+                    ctx.fill();
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = selected ? '#93c5fd' : '#64748b';
+                    ctx.stroke();
+                });
+            };
+
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                const cx = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+                const cy = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: ((cx - rect.left) / rect.width) * canvas.width,
+                    y: ((cy - rect.top) / rect.height) * canvas.height
+                };
+            }
+
+            function hitTest(pt) {
+                for (let i = 0; i < nodes.length; i++) {
+                    if (Math.hypot(pt.x - nodes[i].x, pt.y - nodes[i].y) <= 18 && !currentPattern.includes(i)) {
+                        currentPattern.push(i);
+                        updatePatternUI();
+                    }
+                }
+            }
+
+            const onStart = (e) => {
+                e.preventDefault();
+                isDrawing = true;
+                currentPattern = [];
+                hitTest(getPos(e));
+                window.drawPatternCanvas();
+            };
+            const onMove = (e) => {
+                if (!isDrawing) return;
+                e.preventDefault();
+                hitTest(getPos(e));
+                window.drawPatternCanvas();
+            };
+            const onEnd = () => { isDrawing = false; };
+
+            canvas.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+            canvas.addEventListener('touchstart', onStart, { passive: false });
+            canvas.addEventListener('touchmove', onMove, { passive: false });
+            canvas.addEventListener('touchend', onEnd);
+            window.drawPatternCanvas();
+        }
+
+        window.clearPattern = function() {
+            currentPattern = [];
+            updatePatternUI();
+        };
+
+        function updatePatternUI() {
+            const disp = document.getElementById('pattern-sequence-display');
+            disp.textContent = currentPattern.length > 0 ? currentPattern.map((n) => n + 1).join(' → ') : 'Sin patrón asignado';
+            if (typeof window.drawPatternCanvas === 'function') window.drawPatternCanvas();
+        }
+
+        // =====================================================================
+        // ESCÁNER QR
+        // =====================================================================
+        window.openQrScanner = async function() {
+            const modal = document.getElementById('qr-modal');
+            const video = document.getElementById('qr-video');
+            const statusMsg = document.getElementById('qr-status-msg');
+            const frame = document.getElementById('qr-overlay-frame');
+
+            modal.classList.remove('hidden');
+            video.classList.add('hidden');
+            frame.classList.add('hidden');
+            statusMsg.classList.remove('hidden');
+            statusMsg.innerHTML = `<p>Solicitando acceso a la cámara...</p>`;
+
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    statusMsg.innerHTML = `<p>Cámara no disponible. Usá "Cargar Imagen QR".</p>`;
+                    return;
+                }
+                qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = qrStream;
+                await video.play();
+                statusMsg.classList.add('hidden');
+                video.classList.remove('hidden');
+                frame.classList.remove('hidden');
+                scanQrFrameLoop();
+            } catch (err) {
+                statusMsg.innerHTML = `<p>No se pudo abrir la cámara. Podés cargar una foto del QR.</p>`;
+            }
+        };
+
+        function scanQrFrameLoop() {
+            const video = document.getElementById('qr-video');
+            const canvas = document.getElementById('qr-canvas');
+            if (!qrStream || video.paused || video.ended) return;
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                if (window.jsQR) {
+                    const code = window.jsQR(imgData.data, imgData.width, imgData.height);
+                    if (code && code.data) {
+                        document.getElementById('eq-qr').value = code.data;
+                        closeQrScanner();
+                        showToast('Código QR leído.', 'success');
+                        return;
+                    }
+                }
+            }
+            qrAnimFrame = requestAnimationFrame(scanQrFrameLoop);
+        }
+
+        window.closeQrScanner = function() {
+            if (qrAnimFrame) { cancelAnimationFrame(qrAnimFrame); qrAnimFrame = null; }
+            if (qrStream) { qrStream.getTracks().forEach((t) => t.stop()); qrStream = null; }
+            const video = document.getElementById('qr-video');
+            if (video) video.srcObject = null;
+            document.getElementById('qr-modal').classList.add('hidden');
+        };
+
+        function decodeQrFromImageFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const result = window.jsQR ? window.jsQR(data.data, data.width, data.height) : null;
+                    if (result && result.data) {
+                        document.getElementById('eq-qr').value = result.data;
+                        closeQrScanner();
+                        showToast('QR detectado desde la imagen.', 'success');
+                    } else {
+                        showToast('No se detectó un QR válido en la imagen.', 'error');
+                    }
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // =====================================================================
+        // COMPRESIÓN DE IMÁGENES Y FIRMAS
+        // =====================================================================
+        function compressImageFile(file, maxDim = 960, quality = 0.74) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let w = img.width;
+                        let h = img.height;
+                        if (w > maxDim || h > maxDim) {
+                            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    };
+                    img.onerror = reject;
+                    img.src = ev.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function initSignaturePad(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let drawing = false;
+
+            function getCoords(e) {
+                const rect = canvas.getBoundingClientRect();
+                const cx = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+                const cy = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: ((cx - rect.left) / rect.width) * canvas.width,
+                    y: ((cy - rect.top) / rect.height) * canvas.height
+                };
+            }
+
+            const start = (e) => {
+                e.preventDefault();
+                drawing = true;
+                const pt = getCoords(e);
+                ctx.beginPath();
+                ctx.moveTo(pt.x, pt.y);
+            };
+            const move = (e) => {
+                if (!drawing) return;
+                e.preventDefault();
+                const pt = getCoords(e);
+                ctx.lineWidth = 2.4;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineTo(pt.x, pt.y);
+                ctx.stroke();
+            };
+            const end = () => { drawing = false; };
+
+            canvas.addEventListener('mousedown', start);
+            canvas.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', end);
+            canvas.addEventListener('touchstart', start, { passive: false });
+            canvas.addEventListener('touchmove', move, { passive: false });
+            canvas.addEventListener('touchend', end);
+        }
+
+        function clearCanvasById(canvasId) {
+            const c = document.getElementById(canvasId);
+            if (c) c.getContext('2d').clearRect(0, 0, c.width, c.height);
+        }
+
+        function isCanvasBlank(canvas) {
+            if (!canvas) return true;
+            const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+            for (let i = 3; i < pixels.length; i += 4) {
+                if (pixels[i] !== 0) return false;
+            }
+            return true;
+        }
+
+        function drawImageOnCanvas(canvasId, dataUrl) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || !dataUrl) return;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const img = new Image();
+            img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            img.src = dataUrl;
+        }
+
+        // =====================================================================
+        // PDF DE CLIENTE ("Firma del cliente")
+        // =====================================================================
+        window.openPdfModal = function(clientId) {
+            const cli = (appData.clients || []).find((c) => c.id === clientId);
+            if (!cli) return;
+            activePdfClientId = clientId;
+            document.getElementById('pdf-client-name').textContent = cli.name;
+            document.getElementById('pdf-eq-count').textContent = `${(cli.equipments || []).length} equipo(s)`;
+            document.getElementById('pdf-include-secrets').checked = false;
+            clearCanvasById('signature-canvas');
+            document.getElementById('pdf-modal').classList.remove('hidden');
+            refreshIcons();
+        };
+
+        window.closePdfModal = function() {
+            document.getElementById('pdf-modal').classList.add('hidden');
+            activePdfClientId = null;
+        };
+
+        window.clearSignaturePad = function() {
+            clearCanvasById('signature-canvas');
+        };
+
+        window.generateAndDownloadPDF = function() {
+            if (!window.jspdf || !activePdfClientId) return;
+            const cli = (appData.clients || []).find((c) => c.id === activePdfClientId);
+            if (!cli) return;
+
+            const includeSecrets = document.getElementById('pdf-include-secrets').checked;
+            const sigCanvas = document.getElementById('signature-canvas');
+            const hasSig = !isCanvasBlank(sigCanvas);
+            const sigDataUrl = hasSig ? sigCanvas.toDataURL('image/png') : '';
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const comp = appData.company || {};
+
+            doc.setFillColor(15, 23, 42);
+            doc.rect(0, 0, 210, 32, 'F');
+
+            let xStart = 14;
+            if (comp.logoBase64) {
+                try { doc.addImage(comp.logoBase64, 'JPEG', 14, 5, 22, 22); xStart = 41; } catch (e) {}
+            }
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.text(comp.name || 'SC Seguridad Integral', xStart, 13);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(203, 213, 225);
+            const infoLine = [comp.phone ? `Tel: ${comp.phone}` : '', comp.taxId, comp.address].filter(Boolean).join(' | ');
+            doc.text(infoLine || 'Ficha Técnica y Comprobante de Entrega', xStart, 20);
+            doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-AR')}`, xStart, 26);
+
+            let y = 40;
+            doc.setFillColor(241, 245, 249);
+            doc.roundedRect(14, y, 182, 22, 2, 2, 'F');
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.5);
+            doc.text('DATOS DEL CLIENTE', 18, y + 6);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.text(`Nombre y Apellido: ${cli.name}`, 18, y + 12);
+            doc.text(`Teléfono: ${cli.phone || '-'}`, 118, y + 12);
+            doc.text(`Domicilio: ${cli.address || '-'}`, 18, y + 18);
+
+            y += 29;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.5);
+            doc.text('EQUIPOS REGISTRADOS', 14, y);
+            y += 5;
+
+            const eqs = cli.equipments || [];
+            if (eqs.length === 0) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8.5);
+                doc.text('Sin equipos registrados.', 14, y + 5);
+                y += 12;
+            } else {
+                eqs.forEach((eq, idx) => {
+                    const details = [
+                        `[${eq.category}] ${eq.model}`,
+                        eq.sn ? `SN: ${eq.sn}` : '',
+                        eq.qr ? `QR: ${eq.qr}` : '',
+                        includeSecrets && eq.pass ? `Clave: ${eq.pass}` : '',
+                        includeSecrets && eq.pattern && eq.pattern.length ? `Patrón: ${eq.pattern.map((n) => n + 1).join('-')}` : ''
+                    ].filter(Boolean).join('  •  ');
+
+                    const lines = doc.splitTextToSize(details, 174);
+                    const boxH = lines.length * 4.5 + 6;
+                    if (y + boxH > 268) { doc.addPage(); y = 18; }
+                    doc.setDrawColor(203, 213, 225);
+                    doc.roundedRect(14, y, 182, boxH, 1.5, 1.5, 'S');
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(8.5);
+                    doc.setTextColor(15, 23, 42);
+                    doc.text(`${idx + 1}. `, 17, y + 5);
+                    doc.text(lines, 22, y + 5);
+                    y += boxH + 3;
+                });
+            }
+
+            if (y + 38 > 280) { doc.addPage(); y = 20; }
+            else { y = Math.max(y + 6, 235); }
+
+            if (comp.legalText) {
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(7.5);
+                doc.setTextColor(100, 116, 139);
+                const legLines = doc.splitTextToSize(comp.legalText, 182);
+                doc.text(legLines, 14, y);
+                y += legLines.length * 3.8 + 4;
+            }
+
+            if (hasSig) {
+                try { doc.addImage(sigDataUrl, 'PNG', 125, y, 52, 20); } catch (e) {}
+            }
+            doc.setDrawColor(100, 116, 139);
+            doc.line(120, y + 21, 184, y + 21);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(15, 23, 42);
+            doc.text(cli.name, 152, y + 25.5, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.text('Firma del cliente', 152, y + 29.5, { align: 'center' });
+
+            const safeName = (cli.name || 'Cliente').replace(/[^a-z0-9]/gi, '_');
+            doc.save(`Ficha_Cliente_${safeName}.pdf`);
+            closePdfModal();
+            showToast('PDF de cliente descargado.', 'success');
+        };
+
+        // =====================================================================
+        // PESTAÑA 2: INFORMES ("Firma del técnico instalador")
+        // =====================================================================
+        function getNowDateTimeLocalValue() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            return now.toISOString().slice(0, 16);
+        }
+
+        window.setReportNow = function() {
+            document.getElementById('rpt-datetime').value = getNowDateTimeLocalValue();
+        };
+
+        function formatDateTimeHuman(dtStr) {
+            if (!dtStr) return '';
+            const d = new Date(dtStr);
+            if (isNaN(d.getTime())) return dtStr;
+            return `${d.toLocaleDateString('es-AR')} ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs`;
+        }
+
+        function populateReportClientSelect(selectedId = '') {
+            const select = document.getElementById('rpt-client-select');
+            const clients = appData.clients || [];
+            select.innerHTML = `<option value="">-- Seleccionar cliente existente (${clients.length}) --</option>` +
+                clients.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)} ${c.phone ? '(' + escapeHtml(c.phone) + ')' : ''}</option>`).join('');
+            select.value = selectedId || '';
+        }
+
+        window.toggleNewClientInReport = function(forceState = null) {
+            isNewClientInReport = forceState !== null ? forceState : !isNewClientInReport;
+            document.getElementById('rpt-existing-client-box').classList.toggle('hidden', isNewClientInReport);
+            document.getElementById('rpt-new-client-banner').classList.toggle('hidden', !isNewClientInReport);
+            document.getElementById('btn-toggle-new-client').classList.toggle('hidden', isNewClientInReport);
+
+            if (isNewClientInReport) {
+                document.getElementById('rpt-client-select').value = '';
+                document.getElementById('rpt-client-name').value = '';
+                document.getElementById('rpt-client-phone').value = '';
+                document.getElementById('rpt-address').value = '';
+                document.getElementById('rpt-client-name').focus();
+            }
+        };
+
+        window.onReportClientSelected = function() {
+            const id = document.getElementById('rpt-client-select').value;
+            if (!id) return;
+            const cli = (appData.clients || []).find((c) => c.id === id);
+            if (!cli) return;
+            document.getElementById('rpt-client-name').value = cli.name || '';
+            document.getElementById('rpt-client-phone').value = cli.phone || '';
+            document.getElementById('rpt-address').value = cli.address || '';
+            showToast(`Datos autocompletados de ${cli.name}.`, 'info');
+        };
+
+        window.renderReports = function() {
+            const query = (document.getElementById('report-search-input')?.value || '').trim().toLowerCase();
+            const serviceFilter = document.getElementById('report-service-filter')?.value || 'ALL';
+            const reports = appData.reports || [];
+
+            const filtered = reports.filter((r) => {
+                if (serviceFilter !== 'ALL' && r.serviceType !== serviceFilter) return false;
+                if (!query) return true;
+                return (r.clientName || '').toLowerCase().includes(query) ||
+                       (r.address || '').toLowerCase().includes(query) ||
+                       (r.visitReason || '').toLowerCase().includes(query) ||
+                       (r.solution || '').toLowerCase().includes(query) ||
+                       (r.reportDetail || '').toLowerCase().includes(query);
+            });
+
+            const grid = document.getElementById('reports-grid');
+            const empty = document.getElementById('reports-empty-state');
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                empty.classList.remove('hidden');
+                refreshIcons();
+                return;
+            }
+
+            empty.classList.add('hidden');
+            grid.innerHTML = filtered.map((r) => {
+                const photoCount = (r.photos || []).length;
+                return `
+                <article class="bg-vault-900 border border-slate-800 hover:border-amber-500/40 rounded-2xl p-4 sm:p-5 flex flex-col justify-between gap-4 shadow-lg transition">
+                    <div class="space-y-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap mb-1">
+                                    <span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">${escapeHtml(r.serviceType || 'CCTV')}</span>
+                                    <span class="text-[11px] text-slate-400">${escapeHtml(formatDateTimeHuman(r.dateTime))}</span>
+                                </div>
+                                <h3 class="text-base font-bold text-white truncate">${escapeHtml(r.clientName)}</h3>
+                                <div class="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                                    <i data-lucide="map-pin" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i> ${escapeHtml(r.address)}
+                                </div>
+                            </div>
+                            <span class="px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-emerald-400 shrink-0">
+                                ${photoCount}/10 fotos
+                            </span>
+                        </div>
+
+                        <div class="bg-slate-950/75 border border-slate-800 rounded-xl p-3 space-y-1 text-xs">
+                            <div><span class="text-slate-400 font-semibold">Motivo:</span> <span class="text-slate-200">${escapeHtml(r.visitReason || '-')}</span></div>
+                            ${r.solution ? `<div><span class="text-emerald-400 font-semibold">Solución:</span> <span class="text-slate-300">${escapeHtml(r.solution)}</span></div>` : ''}
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                        <button onclick="generateReportPDFById('${escapeJs(r.id)}')" class="flex-1 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition">
+                            <i data-lucide="file-down" class="w-4 h-4"></i> Generar PDF
+                        </button>
+                        <button onclick="openReportModal('${escapeJs(r.id)}')" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition" title="Editar informe">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="deleteReport('${escapeJs(r.id)}')" class="p-2.5 rounded-xl bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition" title="Eliminar informe">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </article>`;
+            }).join('');
+
+            refreshIcons();
+        };
+
+        window.openReportModal = function(reportId = null) {
+            document.getElementById('edit-report-id').value = reportId || '';
+            clearCanvasById('rpt-tech-sig-canvas');
+            populateReportClientSelect('');
+            toggleNewClientInReport(false);
+
+            if (reportId) {
+                const r = (appData.reports || []).find((item) => item.id === reportId);
+                if (!r) return;
+                document.getElementById('report-modal-title').innerHTML = `<i data-lucide="file-edit" class="w-5 h-5 text-amber-400"></i> <span>Editar Informe Técnico</span>`;
+                populateReportClientSelect(r.clientId || '');
+                document.getElementById('rpt-client-name').value = r.clientName || '';
+                document.getElementById('rpt-client-phone').value = r.clientPhone || '';
+                document.getElementById('rpt-datetime').value = r.dateTime || getNowDateTimeLocalValue();
+                document.getElementById('rpt-address').value = r.address || '';
+                document.getElementById('rpt-service-type').value = r.serviceType || 'CCTV';
+                document.getElementById('rpt-reason').value = r.visitReason || '';
+                document.getElementById('rpt-cause').value = r.possibleCause || '';
+                document.getElementById('rpt-solution').value = r.solution || '';
+                document.getElementById('rpt-recommendation').value = r.recommendation || '';
+                document.getElementById('rpt-detail').value = r.reportDetail || '';
+                document.getElementById('rpt-tech-name').value = r.techName || '';
+                document.getElementById('rpt-tech-role').value = r.techRole || '';
+                tempReportPhotos = JSON.parse(JSON.stringify(r.photos || [])).slice(0, 10);
+                if (r.techSignature) drawImageOnCanvas('rpt-tech-sig-canvas', r.techSignature);
+            } else {
+                document.getElementById('report-modal-title').innerHTML = `<i data-lucide="file-plus-2" class="w-5 h-5 text-amber-400"></i> <span>Nuevo Informe Técnico</span>`;
+                document.getElementById('rpt-client-name').value = '';
+                document.getElementById('rpt-client-phone').value = '';
+                document.getElementById('rpt-datetime').value = getNowDateTimeLocalValue();
+                document.getElementById('rpt-address').value = '';
+                document.getElementById('rpt-service-type').value = 'CCTV';
+                document.getElementById('rpt-reason').value = '';
+                document.getElementById('rpt-cause').value = '';
+                document.getElementById('rpt-solution').value = '';
+                document.getElementById('rpt-recommendation').value = '';
+                document.getElementById('rpt-detail').value = '';
+                document.getElementById('rpt-tech-name').value = appData.company.defaultTechName || '';
+                document.getElementById('rpt-tech-role').value = appData.company.defaultTechRole || '';
+                tempReportPhotos = [];
+                if (appData.company.defaultTechSignature) {
+                    drawImageOnCanvas('rpt-tech-sig-canvas', appData.company.defaultTechSignature);
+                }
+            }
+
+            renderReportPhotosGrid();
+            document.getElementById('report-modal').classList.remove('hidden');
+            refreshIcons();
+        };
+
+        window.closeReportModal = function() {
+            document.getElementById('report-modal').classList.add('hidden');
+        };
+
+        window.useSavedTechSignature = function() {
+            const comp = appData.company || {};
+            if (comp.defaultTechName) document.getElementById('rpt-tech-name').value = comp.defaultTechName;
+            if (comp.defaultTechRole) document.getElementById('rpt-tech-role').value = comp.defaultTechRole;
+            if (comp.defaultTechSignature) {
+                drawImageOnCanvas('rpt-tech-sig-canvas', comp.defaultTechSignature);
+                showToast('Firma del técnico instalador aplicada.', 'success');
+            } else {
+                showToast('No hay firma predeterminada guardada en Ajustes.', 'info');
+            }
+        };
+
+        window.clearReportTechPad = function() {
+            clearCanvasById('rpt-tech-sig-canvas');
+        };
+
+        window.updatePhotoCaption = function(idx, value) {
+            if (tempReportPhotos[idx]) tempReportPhotos[idx].caption = value;
+        };
+
+        function renderReportPhotosGrid() {
+            const counter = document.getElementById('rpt-photo-counter');
+            const addBtn = document.getElementById('rpt-add-photo-btn');
+            const grid = document.getElementById('rpt-photos-grid');
+
+            counter.textContent = `${tempReportPhotos.length} / 10 fotos`;
+            addBtn.classList.toggle('opacity-50', tempReportPhotos.length >= 10);
+            addBtn.classList.toggle('pointer-events-none', tempReportPhotos.length >= 10);
+
+            if (tempReportPhotos.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-5 bg-slate-900/50 rounded-xl border border-dashed border-slate-800 text-xs text-slate-500">Sin fotografías adjuntas (hasta 10 fotos).</div>`;
+                return;
+            }
+
+            grid.innerHTML = tempReportPhotos.map((photo, idx) => `
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-2 space-y-2 relative">
+                    <div class="aspect-video bg-black rounded-lg overflow-hidden relative">
+                        <img src="${photo.dataUrl}" class="w-full h-full object-cover" alt="Foto #${idx + 1}">
+                        <span class="absolute top-2 left-2 bg-black/75 text-white text-[10px] font-mono px-2 py-0.5 rounded-md">#${idx + 1}</span>
+                        <button type="button" onclick="removeReportPhoto(${idx})" title="Eliminar foto" class="absolute top-2 right-2 p-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white shadow">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                    <input type="text" value="${escapeHtml(photo.caption || '')}" oninput="updatePhotoCaption(${idx}, this.value)"
+                        placeholder="Epígrafe opcional..."
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 placeholder-slate-500 focus:border-emerald-500 focus:outline-none">
+                </div>
+            `).join('');
+            refreshIcons();
+        }
+
+        window.removeReportPhoto = function(idx) {
+            tempReportPhotos.splice(idx, 1);
+            renderReportPhotosGrid();
+        };
+
+        window.saveReportData = async function(andGeneratePdf = false) {
+            const clientName = document.getElementById('rpt-client-name').value.trim();
+            const clientPhone = document.getElementById('rpt-client-phone').value.trim();
+            const dateTime = document.getElementById('rpt-datetime').value;
+            const address = document.getElementById('rpt-address').value.trim();
+            const visitReason = document.getElementById('rpt-reason').value.trim();
+            const reportDetail = document.getElementById('rpt-detail').value.trim();
+
+            if (!clientName || !address || !dateTime || !visitReason) {
+                showToast('Completá Cliente, Domicilio, Fecha/Hora y Motivo de la visita.', 'error');
+                return;
+            }
+
+            let clientId = document.getElementById('rpt-client-select').value;
+            if (!Array.isArray(appData.clients)) appData.clients = [];
+
+            if (isNewClientInReport || !clientId) {
+                const existing = appData.clients.find(
+                    (c) => (c.name || '').toLowerCase() === clientName.toLowerCase() && (c.phone || '') === clientPhone
+                );
+                if (existing) {
+                    clientId = existing.id;
+                    if (!existing.address && address) existing.address = address;
+                } else {
+                    const created = {
+                        id: 'cli_' + Date.now(),
+                        name: clientName,
+                        phone: clientPhone,
+                        address,
+                        equipments: [],
+                        updatedAt: new Date().toISOString()
+                    };
+                    appData.clients.unshift(created);
+                    clientId = created.id;
+                    renderClients();
+                }
+            }
+
+            const sigCanvas = document.getElementById('rpt-tech-sig-canvas');
+            const techSignature = isCanvasBlank(sigCanvas) ? '' : sigCanvas.toDataURL('image/png');
+
+            const editId = document.getElementById('edit-report-id').value;
+            const reportObj = {
+                id: editId || 'inf_' + Date.now(),
+                clientId,
+                clientName,
+                clientPhone,
+                dateTime,
+                address,
+                serviceType: document.getElementById('rpt-service-type').value,
+                visitReason,
+                possibleCause: document.getElementById('rpt-cause').value.trim(),
+                solution: document.getElementById('rpt-solution').value.trim(),
+                recommendation: document.getElementById('rpt-recommendation').value.trim(),
+                reportDetail,
+                photos: JSON.parse(JSON.stringify(tempReportPhotos)).slice(0, 10),
+                techName: document.getElementById('rpt-tech-name').value.trim(),
+                techRole: document.getElementById('rpt-tech-role').value.trim(),
+                techSignature,
+                updatedAt: new Date().toISOString()
+            };
+
+            if (!Array.isArray(appData.reports)) appData.reports = [];
+            if (editId) {
+                const idx = appData.reports.findIndex((r) => r.id === editId);
+                if (idx !== -1) appData.reports[idx] = reportObj;
+            } else {
+                appData.reports.unshift(reportObj);
+            }
+
+            await persistAndSyncVault();
+            renderReports();
+            closeReportModal();
+            showToast('Informe guardado y sincronizado en la nube.', 'success');
+
+            if (andGeneratePdf) generateReportPDF(reportObj);
+        };
+
+        window.deleteReport = async function(reportId) {
+            const ok = await customConfirm('¿Eliminar informe?', 'Se borrará este informe en todos tus dispositivos.');
+            if (!ok) return;
+            appData.reports = (appData.reports || []).filter((r) => r.id !== reportId);
+            await persistAndSyncVault();
+            renderReports();
+            showToast('Informe eliminado.', 'info');
+        };
+
+        window.generateReportPDFById = function(reportId) {
+            const r = (appData.reports || []).find((item) => item.id === reportId);
+            if (r) generateReportPDF(r);
+        };
+
+        function generateReportPDF(rpt) {
+            if (!window.jspdf) return;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const comp = appData.company || {};
+
+            doc.setFillColor(15, 23, 42);
+            doc.rect(0, 0, 210, 34, 'F');
+
+            let xStart = 14;
+            if (comp.logoBase64) {
+                try { doc.addImage(comp.logoBase64, 'JPEG', 14, 5, 24, 24); xStart = 43; } catch (e) {}
+            }
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.text(comp.name || 'SC Seguridad Integral', xStart, 13);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(203, 213, 225);
+            const compLine = [comp.phone ? `Tel: ${comp.phone}` : '', comp.taxId, comp.address].filter(Boolean).join(' | ');
+            doc.text(compLine || 'Servicio Técnico y Seguridad Electrónica', xStart, 19);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(251, 191, 36);
+            doc.text(`INFORME TÉCNICO DE ASISTENCIA • ${rpt.serviceType || 'CCTV'}`, xStart, 26);
+
+            let y = 41;
+            doc.setFillColor(241, 245, 249);
+            doc.roundedRect(14, y, 182, 28, 2, 2, 'F');
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9.5);
+            doc.text('DATOS DEL CLIENTE Y UBICACIÓN', 18, y + 6);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.text(`Cliente: ${rpt.clientName}`, 18, y + 12.5);
+            doc.text(`Teléfono: ${rpt.clientPhone || '-'}`, 120, y + 12.5);
+            doc.text(`Domicilio: ${rpt.address}`, 18, y + 18.5);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Fecha y Hora de Asistencia: ${formatDateTimeHuman(rpt.dateTime)}`, 18, y + 24.5);
+
+            y += 35;
+
+            const addBlock = (title, bodyText, borderRGB, fillRGB) => {
+                if (!bodyText) return;
+                const lines = doc.splitTextToSize(bodyText, 174);
+                const h = lines.length * 4.5 + 10;
+                if (y + h > 274) { doc.addPage(); y = 18; }
+                doc.setDrawColor(...borderRGB);
+                doc.setFillColor(...fillRGB);
+                doc.roundedRect(14, y, 182, h, 2, 2, 'FD');
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.setTextColor(15, 23, 42);
+                doc.text(title, 18, y + 6);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8.5);
+                doc.setTextColor(30, 41, 59);
+                doc.text(lines, 18, y + 12);
+                y += h + 4.5;
+            };
+
+            addBlock('MOTIVO DE LA VISITA', rpt.visitReason, [245, 158, 11], [255, 251, 235]);
+            addBlock('POSIBLE CAUSA', rpt.possibleCause, [148, 163, 184], [248, 250, 252]);
+            addBlock('SOLUCIÓN', rpt.solution, [16, 185, 129], [236, 253, 245]);
+            addBlock('RECOMENDACIÓN', rpt.recommendation, [59, 130, 246], [239, 246, 255]);
+            addBlock('DETALLE DEL INFORME', rpt.reportDetail, [100, 116, 139], [255, 255, 255]);
+
+            const photos = rpt.photos || [];
+            if (photos.length > 0) {
+                if (y > 205) { doc.addPage(); y = 18; }
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9.5);
+                doc.setTextColor(15, 23, 42);
+                doc.text(`FOTOGRAFÍAS ADJUNTAS (${photos.length}/10)`, 14, y + 2);
+                y += 6;
+
+                const colW = 88;
+                const imgH = 50;
+                const cardH = 61;
+
+                for (let i = 0; i < photos.length; i += 2) {
+                    if (y + cardH > 274) { doc.addPage(); y = 18; }
+                    [photos[i], photos[i + 1]].forEach((ph, colIdx) => {
+                        if (!ph) return;
+                        const x = 14 + colIdx * (colW + 6);
+                        doc.setDrawColor(203, 213, 225);
+                        doc.roundedRect(x, y, colW, cardH, 2, 2, 'S');
+                        try { doc.addImage(ph.dataUrl, 'JPEG', x + 2, y + 2, colW - 4, imgH); } catch (e) {}
+                        const cap = ph.caption ? `Foto #${i + colIdx + 1} — ${ph.caption}` : `Foto #${i + colIdx + 1}`;
+                        const capLines = doc.splitTextToSize(cap, colW - 6);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(7.5);
+                        doc.setTextColor(71, 85, 105);
+                        doc.text(capLines[0] || cap, x + 3, y + imgH + 6);
+                    });
+                    y += cardH + 4;
+                }
+            }
+
+            // Firma del técnico instalador
+            if (y + 42 > 282) { doc.addPage(); y = 20; }
+            else { y = Math.max(y + 6, 234); }
+
+            doc.setDrawColor(203, 213, 225);
+            doc.line(14, y, 196, y);
+            y += 5;
+
+            if (rpt.techSignature) {
+                try { doc.addImage(rpt.techSignature, 'PNG', 77, y, 56, 20); } catch (e) {}
+            }
+            doc.setDrawColor(100, 116, 139);
+            doc.line(70, y + 21, 140, y + 21);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(15, 23, 42);
+            doc.text('Firma del técnico instalador', 105, y + 26, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(71, 85, 105);
+            const techMeta = [rpt.techName || comp.defaultTechName || '', rpt.techRole || comp.defaultTechRole || ''].filter(Boolean).join(' — ');
+            if (techMeta) doc.text(techMeta, 105, y + 30.5, { align: 'center' });
+
+            const safeClient = (rpt.clientName || 'Informe').replace(/[^a-z0-9]/gi, '_');
+            doc.save(`Informe_${safeClient}.pdf`);
+            showToast('Informe PDF generado y descargado.', 'success');
+        }
+
+        // =====================================================================
+        // EVENTOS DE FORMULARIOS, CUENTA CLOUD Y BÓVEDA
+        // =====================================================================
+        function bindEvents() {
+            // Google Sign-In para sincronizar entre Celular y PC/Mac
+            document.getElementById('btn-google-signin').addEventListener('click', async () => {
+                if (!auth) return;
+                try {
+                    const provider = new GoogleAuthProvider();
+                    await signInWithPopup(auth, provider);
+                    showToast('Cuenta de Google vinculada para sincronización.', 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('No se pudo iniciar con Google. Podés usar Correo y Contraseña.', 'error');
+                }
+            });
+
+            // Email / Password Login
+            document.getElementById('btn-email-login').addEventListener('click', async () => {
+                if (!auth) return;
+                const email = document.getElementById('cloud-email-input').value.trim();
+                const pass = document.getElementById('cloud-email-pass').value;
+                if (!email || !pass) {
+                    showToast('Ingresá correo y contraseña de cuenta.', 'error');
+                    return;
+                }
+                try {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                    showToast('Sesión iniciada en la nube.', 'success');
+                } catch (err) {
+                    showToast('Correo o contraseña incorrectos.', 'error');
+                }
+            });
+
+            // Email / Password Register
+            document.getElementById('btn-email-register').addEventListener('click', async () => {
+                if (!auth) return;
+                const email = document.getElementById('cloud-email-input').value.trim();
+                const pass = document.getElementById('cloud-email-pass').value;
+                if (!email || pass.length < 6) {
+                    showToast('Ingresá un correo válido y contraseña de al menos 6 caracteres.', 'error');
+                    return;
+                }
+                try {
+                    await createUserWithEmailAndPassword(auth, email, pass);
+                    showToast('Cuenta creada y vinculada.', 'success');
+                } catch (err) {
+                    showToast('No se pudo crear la cuenta (verificá si el correo ya existe).', 'error');
+                }
+            });
+
+            // Cerrar / cambiar cuenta cloud
+            document.getElementById('btn-signout-cloud').addEventListener('click', async () => {
+                if (!auth) return;
+                try {
+                    await signOut(auth);
+                    latestCloudVaultDoc = null;
+                    refreshVaultUnlockState();
+                    showToast('Sesión cerrada. Iniciá con otra cuenta si deseás.', 'info');
+                } catch (err) {}
+            });
+
+            // Crear bóveda cifrada por primera vez
+            document.getElementById('setup-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const p1 = document.getElementById('setup-pass').value;
+                const p2 = document.getElementById('setup-pass-confirm').value;
+                if (p1 !== p2) {
+                    showToast('Las contraseñas maestras no coinciden.', 'error');
+                    return;
+                }
+                try {
+                    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+                    currentSaltArray = Array.from(salt);
+                    masterCryptoKey = await deriveKeyFromPassword(p1, salt);
+                    window.__sessionMasterPassPlain = p1;
+                    await persistAndSyncVault();
+                    enterApp();
+                    showToast('Bóveda cifrada creada y sincronizada.', 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Error al crear la bóveda.', 'error');
+                }
+            });
+
+            // Desbloquear bóveda existente (desde nube o caché local)
+            document.getElementById('unlock-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const pass = document.getElementById('unlock-pass').value;
+                const candidateBundle = latestCloudVaultDoc || readLocalCache();
+                if (!candidateBundle) {
+                    showToast('No se encontró bóveda cifrada.', 'error');
+                    return;
+                }
+                try {
+                    const key = await deriveKeyFromPassword(pass, new Uint8Array(candidateBundle.salt));
+                    const decrypted = await decryptPayload(candidateBundle.vault, key);
+
+                    masterCryptoKey = key;
+                    currentSaltArray = candidateBundle.salt;
+                    window.__sessionMasterPassPlain = pass;
+                    lastAppliedCloudVersion = candidateBundle.version || Date.now();
+                    appData = normalizeVaultData(decrypted);
+                    document.getElementById('unlock-pass').value = '';
+
+                    await saveLocalCache(candidateBundle);
+                    enterApp();
+                } catch (err) {
+                    showToast('Contraseña maestra incorrecta.', 'error');
+                }
+            });
+
+            // Reiniciar bóveda local/remota
+            document.getElementById('btn-reset-vault-prompt').addEventListener('click', async () => {
+                const ok = await customConfirm(
+                    '¿Reiniciar bóveda?',
+                    'Se borrará la caché local de este navegador para crear una nueva clave maestra.'
+                );
+                if (!ok) return;
+                localStorage.removeItem(STORAGE_VAULT_KEY);
+                localStorage.removeItem(STORAGE_SALT_KEY);
+                latestCloudVaultDoc = null;
+                masterCryptoKey = null;
+                refreshVaultUnlockState();
+                showToast('Bóveda local reiniciada.', 'info');
+            });
+
+            document.getElementById('restore-backup-auth').addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                e.target.value = '';
+                await handleImportBackupFile(file, true);
+            });
+
+            document.getElementById('import-backup-settings').addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                e.target.value = '';
+                await handleImportBackupFile(file, false);
+            });
+
+            document.getElementById('company-logo-input').addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                e.target.value = '';
+                if (!file) return;
+                try {
+                    appData.company.logoBase64 = await compressImageFile(file, 360, 0.8);
+                    loadCompanySettingsForm();
+                    applyCompanyBranding();
+                } catch (err) {
+                    showToast('No se pudo cargar el logotipo.', 'error');
+                }
+            });
+
+            document.getElementById('company-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                appData.company.name = document.getElementById('cfg-name').value.trim() || 'SC Seguridad Integral';
+                appData.company.phone = document.getElementById('cfg-phone').value.trim();
+                appData.company.taxId = document.getElementById('cfg-tax').value.trim();
+                appData.company.address = document.getElementById('cfg-address').value.trim();
+                appData.company.legalText = document.getElementById('cfg-legal').value.trim();
+                appData.company.defaultTechName = document.getElementById('cfg-tech-name').value.trim();
+                appData.company.defaultTechRole = document.getElementById('cfg-tech-role').value.trim();
+
+                const defSigCanvas = document.getElementById('default-tech-sig-canvas');
+                appData.company.defaultTechSignature = isCanvasBlank(defSigCanvas) ? '' : defSigCanvas.toDataURL('image/png');
+
+                await persistAndSyncVault();
+                applyCompanyBranding();
+                showToast('Perfil guardado y sincronizado en la nube.', 'success');
+            });
+
+            document.getElementById('eq-photo-input').addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                e.target.value = '';
+                if (!file) return;
+                try {
+                    currentEqPhotoBase64 = await compressImageFile(file, 800, 0.72);
+                    updateEqPhotoUI();
+                } catch (err) {
+                    showToast('No se pudo procesar la foto del equipo.', 'error');
+                }
+            });
+
+            document.getElementById('qr-file-input').addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                e.target.value = '';
+                decodeQrFromImageFile(file);
+            });
+
+            document.getElementById('rpt-photos-input').addEventListener('change', async (e) => {
+                const files = Array.from(e.target.files || []);
+                e.target.value = '';
+                if (files.length === 0) return;
+
+                const availableSlots = 10 - tempReportPhotos.length;
+                if (availableSlots <= 0) {
+                    showToast('Ya alcanzaste el máximo de 10 fotografías.', 'info');
+                    return;
+                }
+
+                const toProcess = files.slice(0, availableSlots);
+                if (files.length > availableSlots) {
+                    showToast(`Se agregaron ${availableSlots} foto(s) para respetar el máximo de 10.`, 'info');
+                }
+
+                for (const file of toProcess) {
+                    try {
+                        const dataUrl = await compressImageFile(file, 820, 0.7);
+                        tempReportPhotos.push({ dataUrl, caption: '' });
+                    } catch (err) {}
+                }
+                renderReportPhotosGrid();
+            });
+        }
+    </script>
+</body>
+</html>
